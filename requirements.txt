@@ -1,0 +1,25 @@
+# Bot Telegram - Atletismo Madrid
+# Core dependencies
+python-telegram-bot[job-queue]>=21.0
+requests>=2.31.0
+beautifulsoup4>=4.12.0
+pdfplumber>=0.10.0
+lxml>=5.0.0
+
+# Database
+sqlalchemy>=2.0.0
+alembic>=1.13.0
+aiosqlite>=0.19.0
+asyncpg>=0.29.0
+
+# Scheduler
+apscheduler>=3.10.0
+pytz>=2024.1
+
+# Configuration
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+
+# Utilities
+httpx>=0.26.0
