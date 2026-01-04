@@ -3,8 +3,9 @@ Configuración global de pytest y fixtures compartidos.
 """
 
 import os
-import pytest
 from pathlib import Path
+
+import pytest
 
 # Establecer variables de entorno para tests antes de importar config
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test_token_12345")
@@ -84,25 +85,25 @@ def sample_pdf_text() -> str:
     """Texto de ejemplo extraído de un PDF."""
     return """
     FEDERACIÓN DE ATLETISMO DE MADRID
-    
+
     CONTROL DE PISTA CUBIERTA
-    
+
     Fecha: 11 de enero de 2026
     Lugar: Polideportivo Gallur
-    
+
     PROGRAMA DE PRUEBAS
-    
+
     CARRERAS
-    
+
     10:00 - 60m masculino
-    10:15 - 60m femenino  
+    10:15 - 60m femenino
     10:30 - 200m masculino
     10:45 - 200m femenino
     11:00 - 400m masculino
     11:15 - 400m femenino
-    
+
     CONCURSOS
-    
+
     10:00 - Altura femenino
     10:30 - Pértiga masculino
     11:00 - Longitud masculino

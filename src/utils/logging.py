@@ -42,10 +42,10 @@ class TextFormatter(logging.Formatter):
     """Formateador legible para desarrollo local."""
 
     COLORS = {
-        "DEBUG": "\033[36m",     # Cyan
-        "INFO": "\033[32m",      # Green
-        "WARNING": "\033[33m",   # Yellow
-        "ERROR": "\033[31m",     # Red
+        "DEBUG": "\033[36m",  # Cyan
+        "INFO": "\033[32m",  # Green
+        "WARNING": "\033[33m",  # Yellow
+        "ERROR": "\033[31m",  # Red
         "CRITICAL": "\033[35m",  # Magenta
     }
     RESET = "\033[0m"
@@ -53,7 +53,7 @@ class TextFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         color = self.COLORS.get(record.levelname, "")
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
+
         message = (
             f"{color}[{timestamp}] "
             f"{record.levelname:8s}{self.RESET} "
@@ -69,17 +69,14 @@ class TextFormatter(logging.Formatter):
 def setup_logging() -> None:
     """
     Configura el sistema de logging según las variables de entorno.
-    
+
     Debe llamarse al inicio de la aplicación.
     """
     # Determinar el nivel de log
     level = getattr(logging, settings.log_level)
 
     # Seleccionar el formateador según configuración
-    if settings.log_format == "json":
-        formatter = JSONFormatter()
-    else:
-        formatter = TextFormatter()
+    formatter = JSONFormatter() if settings.log_format == "json" else TextFormatter()
 
     # Configurar handler para stdout
     handler = logging.StreamHandler(sys.stdout)
@@ -102,10 +99,10 @@ def setup_logging() -> None:
 def get_logger(name: str) -> logging.Logger:
     """
     Obtiene un logger configurado para el módulo especificado.
-    
+
     Args:
         name: Nombre del módulo (usar __name__)
-        
+
     Returns:
         Logger configurado
     """
@@ -115,9 +112,7 @@ def get_logger(name: str) -> logging.Logger:
 class LoggerAdapter(logging.LoggerAdapter):
     """Adapter para añadir contexto extra a los logs."""
 
-    def process(
-        self, msg: str, kwargs: dict[str, Any]
-    ) -> tuple[str, dict[str, Any]]:
+    def process(self, msg: str, kwargs: dict[str, Any]) -> tuple[str, dict[str, Any]]:
         # Añadir extra_data al record para uso por JSONFormatter
         extra = kwargs.get("extra", {})
         if self.extra:
@@ -129,13 +124,13 @@ class LoggerAdapter(logging.LoggerAdapter):
 def get_logger_with_context(name: str, **context: Any) -> LoggerAdapter:
     """
     Obtiene un logger con contexto adicional incluido en cada mensaje.
-    
+
     Útil para incluir IDs de usuario, competición, etc.
-    
+
     Args:
         name: Nombre del módulo
         **context: Contexto adicional a incluir en los logs
-        
+
     Returns:
         LoggerAdapter con el contexto configurado
     """

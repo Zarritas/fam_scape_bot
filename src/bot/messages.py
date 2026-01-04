@@ -40,7 +40,7 @@ HELP_MESSAGE = """
 • /ayuda - Mostrar este mensaje
 
 <b>¿Cómo funcionan las suscripciones?</b>
-Puedes suscribirte a pruebas específicas como "400m Masculino" o "Pértiga Femenino". 
+Puedes suscribirte a pruebas específicas como "400m Masculino" o "Pértiga Femenino".
 Cada día a las 10:00 recibirás un mensaje con las nuevas competiciones que incluyan tus pruebas.
 
 <b>¿Tienes problemas?</b>

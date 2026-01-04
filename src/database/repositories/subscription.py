@@ -2,9 +2,9 @@
 Repositorio para suscripciones.
 """
 
-from typing import Sequence, Optional
+from collections.abc import Sequence
 
-from sqlalchemy import select, and_, delete
+from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import Subscription, User
@@ -15,12 +15,12 @@ class SubscriptionRepository(BaseRepository[Subscription]):
     """
     Repositorio para operaciones con suscripciones.
     """
-    
+
     model = Subscription
-    
+
     def __init__(self, session: AsyncSession):
         super().__init__(session)
-    
+
     async def get_by_user(self, user_id: int) -> Sequence[Subscription]:
         """Obtiene todas las suscripciones de un usuario."""
         result = await self.session.execute(
@@ -29,7 +29,7 @@ class SubscriptionRepository(BaseRepository[Subscription]):
             .order_by(Subscription.discipline)
         )
         return result.scalars().all()
-    
+
     async def get_by_user_telegram_id(
         self,
         telegram_id: int,
@@ -42,7 +42,7 @@ class SubscriptionRepository(BaseRepository[Subscription]):
             .order_by(Subscription.discipline)
         )
         return result.scalars().all()
-    
+
     async def get_users_for_event(
         self,
         discipline: str,
@@ -50,9 +50,9 @@ class SubscriptionRepository(BaseRepository[Subscription]):
     ) -> Sequence[int]:
         """
         Obtiene IDs de usuarios suscritos a una prueba específica.
-        
+
         Búsqueda case-insensitive de disciplina.
-        
+
         Returns:
             Lista de user_ids suscritos
         """
@@ -63,12 +63,12 @@ class SubscriptionRepository(BaseRepository[Subscription]):
                 and_(
                     Subscription.discipline.ilike(discipline),
                     Subscription.sex == sex.upper(),
-                    User.is_active == True,
+                    User.is_active,
                 )
             )
         )
         return list(result.scalars().all())
-    
+
     async def subscribe(
         self,
         user_id: int,
@@ -77,9 +77,9 @@ class SubscriptionRepository(BaseRepository[Subscription]):
     ) -> tuple[Subscription, bool]:
         """
         Suscribe un usuario a una prueba.
-        
+
         Si ya está suscrito, retorna la suscripción existente.
-        
+
         Returns:
             Tupla (Subscription, is_new)
         """
@@ -87,7 +87,7 @@ class SubscriptionRepository(BaseRepository[Subscription]):
         existing = await self.get_subscription(user_id, discipline, sex)
         if existing:
             return existing, False
-        
+
         # Crear nueva suscripción
         subscription = await self.create(
             user_id=user_id,
@@ -95,13 +95,13 @@ class SubscriptionRepository(BaseRepository[Subscription]):
             sex=sex.upper(),
         )
         return subscription, True
-    
+
     async def get_subscription(
         self,
         user_id: int,
         discipline: str,
         sex: str,
-    ) -> Optional[Subscription]:
+    ) -> Subscription | None:
         """Obtiene una suscripción específica."""
         result = await self.session.execute(
             select(Subscription).where(
@@ -113,7 +113,7 @@ class SubscriptionRepository(BaseRepository[Subscription]):
             )
         )
         return result.scalar_one_or_none()
-    
+
     async def unsubscribe(
         self,
         user_id: int,
@@ -122,7 +122,7 @@ class SubscriptionRepository(BaseRepository[Subscription]):
     ) -> bool:
         """
         Elimina la suscripción de un usuario.
-        
+
         Returns:
             True si se eliminó, False si no existía
         """
@@ -137,11 +137,11 @@ class SubscriptionRepository(BaseRepository[Subscription]):
         )
         await self.session.flush()
         return result.rowcount > 0
-    
+
     async def unsubscribe_all(self, user_id: int) -> int:
         """
         Elimina todas las suscripciones de un usuario.
-        
+
         Returns:
             Número de suscripciones eliminadas
         """

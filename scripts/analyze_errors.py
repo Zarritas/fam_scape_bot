@@ -1,6 +1,8 @@
 import asyncio
+
 from src.database.engine import get_session_factory
 from src.database.repositories import ErrorRepository
+
 
 async def analyze_errors():
     session_factory = get_session_factory()
@@ -10,7 +12,7 @@ async def analyze_errors():
         errors = await error_repo.get_all()
         # Limitar manualmente a los últimos 20 si hay muchos
         errors = sorted(errors, key=lambda x: x.timestamp, reverse=True)[:20]
-        
+
         print(f"--- Análisis de {len(errors)} errores recientes ---")
         for error in errors:
             print(f"\n[{error.timestamp}] {error.component} | {error.error_type}")
@@ -22,6 +24,7 @@ async def analyze_errors():
                 for line in lines[-3:]:
                     print(f"  {line}")
             print("-" * 30)
+
 
 if __name__ == "__main__":
     asyncio.run(analyze_errors())

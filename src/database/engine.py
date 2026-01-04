@@ -4,7 +4,7 @@ SQLAlchemy engine factory y configuración de sesión.
 Soporta SQLite (desarrollo) y PostgreSQL (producción).
 """
 
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
@@ -23,12 +23,12 @@ _session_factory: async_sessionmaker[AsyncSession] | None = None
 def get_engine() -> AsyncEngine:
     """
     Obtiene o crea el engine de SQLAlchemy.
-    
+
     Usa lazy initialization para permitir configuración
     antes de la primera conexión.
     """
     global _engine
-    
+
     if _engine is None:
         # Configuración específica según el tipo de BD
         if settings.is_sqlite:
@@ -47,7 +47,7 @@ def get_engine() -> AsyncEngine:
                 pool_size=5,
                 max_overflow=10,
             )
-    
+
     return _engine
 
 
@@ -56,7 +56,7 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
     Obtiene la factoría de sesiones.
     """
     global _session_factory
-    
+
     if _session_factory is None:
         engine = get_engine()
         _session_factory = async_sessionmaker(
@@ -65,20 +65,22 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
             expire_on_commit=False,
             autoflush=False,
         )
-    
+
     return _session_factory
 
-from contextlib import asynccontextmanager
+
+from contextlib import asynccontextmanager  # noqa: E402
+
 
 @asynccontextmanager
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
     """
     Dependency para obtener una sesión de base de datos.
-    
+
     Uso:
         async with get_session() as session:
             # usar session
-    
+
     O como dependency en handlers.
     """
     factory = get_session_factory()
@@ -94,11 +96,11 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 async def init_db() -> None:
     """
     Inicializa la base de datos creando todas las tablas.
-    
+
     Debe llamarse al inicio de la aplicación.
     """
     from src.database.models import Base
-    
+
     engine = get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -107,11 +109,11 @@ async def init_db() -> None:
 async def close_db() -> None:
     """
     Cierra las conexiones a la base de datos.
-    
+
     Debe llamarse al cerrar la aplicación.
     """
     global _engine, _session_factory
-    
+
     if _engine is not None:
         await _engine.dispose()
         _engine = None

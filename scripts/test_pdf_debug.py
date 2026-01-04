@@ -1,6 +1,9 @@
 import asyncio
+
 import requests
+
 from src.scraper.pdf_parser import PDFParser
+
 
 async def test_specific_pdf(url):
     print(f"Probando PDF: {url}")
@@ -12,13 +15,16 @@ async def test_specific_pdf(url):
         print(f"Lugar: {comp.location}")
         found_times = 0
         for event in comp.events:
-            time_str = event.scheduled_time.strftime("%H:%M") if event.scheduled_time else "SIN HORA"
+            time_str = (
+                event.scheduled_time.strftime("%H:%M") if event.scheduled_time else "SIN HORA"
+            )
             if event.scheduled_time:
                 found_times += 1
             print(f"  - {event.discipline} ({event.sex}): {time_str}")
         print(f"\nTotal pruebas: {len(comp.events)}, Pruebas con hora: {found_times}")
     else:
         print(f"Error descargando: {response.status_code}")
+
 
 if __name__ == "__main__":
     # URL de Jornada Menores 11/01

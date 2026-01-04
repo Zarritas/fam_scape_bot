@@ -1,15 +1,16 @@
 import asyncio
 import logging
+
 from src.scraper.web_scraper import WebScraper
-from src.scraper.models import RawCompetition
 
 # Configurar logging para ver resultados
 logging.basicConfig(level=logging.INFO)
 
+
 async def test_scraping():
     print("Iniciando prueba de scraping...")
     scraper = WebScraper()
-    
+
     # Probar con el mes de enero 2026 (mes del ejemplo del usuario)
     try:
         competitions = scraper.get_competitions(1, 2026)
@@ -23,9 +24,10 @@ async def test_scraping():
                 print(f"    PDF: {comp.pdf_url}")
             elif i < 10:
                 print(f"- {comp.name} ({comp.date_str}) [{comp.competition_type}]")
-            
+
     except Exception as e:
         print(f"Error durante el scraping: {e}")
+
 
 if __name__ == "__main__":
     asyncio.run(test_scraping())

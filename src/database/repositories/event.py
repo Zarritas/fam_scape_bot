@@ -2,9 +2,9 @@
 Repositorio para eventos/pruebas.
 """
 
-from typing import Sequence
+from collections.abc import Sequence
 
-from sqlalchemy import select, and_
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import Event
@@ -15,12 +15,12 @@ class EventRepository(BaseRepository[Event]):
     """
     Repositorio para operaciones con eventos/pruebas.
     """
-    
+
     model = Event
-    
+
     def __init__(self, session: AsyncSession):
         super().__init__(session)
-    
+
     async def get_by_competition(
         self,
         competition_id: int,
@@ -32,7 +32,7 @@ class EventRepository(BaseRepository[Event]):
             .order_by(Event.scheduled_time)
         )
         return result.scalars().all()
-    
+
     async def get_by_discipline_and_sex(
         self,
         discipline: str,
@@ -40,7 +40,7 @@ class EventRepository(BaseRepository[Event]):
     ) -> Sequence[Event]:
         """
         Obtiene eventos por disciplina y sexo.
-        
+
         La búsqueda de disciplina es case-insensitive.
         """
         result = await self.session.execute(
@@ -52,7 +52,7 @@ class EventRepository(BaseRepository[Event]):
             )
         )
         return result.scalars().all()
-    
+
     async def get_matching_subscriptions(
         self,
         discipline: str,
@@ -60,12 +60,13 @@ class EventRepository(BaseRepository[Event]):
     ) -> Sequence[Event]:
         """
         Obtiene eventos que coinciden con una suscripción.
-        
+
         Busca eventos donde la disciplina contenga el texto buscado.
         """
         from datetime import date
+
         from src.database.models import Competition
-        
+
         result = await self.session.execute(
             select(Event)
             .join(Competition)

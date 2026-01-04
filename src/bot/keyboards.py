@@ -111,22 +111,24 @@ def get_sex_keyboard(discipline: str) -> InlineKeyboardMarkup:
 def get_subscriptions_keyboard(subscriptions: list) -> InlineKeyboardMarkup:
     """
     Teclado con lista de suscripciones para desuscribirse.
-    
+
     Args:
         subscriptions: Lista de objetos Subscription
     """
     keyboard = []
-    
+
     for sub in subscriptions:
         sex_label = "👨 M" if sub.sex == "M" else "👩 F"
         text = f"❌ {sub.discipline} {sex_label}"
         callback = f"unsub:{sub.discipline}:{sub.sex}"
         keyboard.append([InlineKeyboardButton(text, callback_data=callback)])
-    
-    keyboard.append([
-        InlineKeyboardButton("🔙 Cerrar", callback_data="cancel"),
-    ])
-    
+
+    keyboard.append(
+        [
+            InlineKeyboardButton("🔙 Cerrar", callback_data="cancel"),
+        ]
+    )
+
     return InlineKeyboardMarkup(keyboard)
 
 

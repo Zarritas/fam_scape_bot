@@ -8,17 +8,18 @@ y los PDFs de la Federación de Atletismo de Madrid.
 from dataclasses import dataclass, field
 from datetime import date, time
 from enum import Enum
-from typing import Optional
 
 
 class EventType(str, Enum):
     """Tipo de prueba atlética."""
+
     CARRERA = "carrera"
     CONCURSO = "concurso"
 
 
 class Sex(str, Enum):
     """Sexo/categoría de la prueba."""
+
     MASCULINO = "M"
     FEMENINO = "F"
 
@@ -27,20 +28,22 @@ class Sex(str, Enum):
 class RawCompetition:
     """
     Datos de una competición extraídos del calendario web.
-    
+
     Representa la información básica antes de parsear el PDF.
     """
+
     name: str
     date_str: str  # Fecha como string (ej: "11 de enero" o "03/01")
     pdf_url: str
     has_modifications: bool = False  # Si tiene fondo amarillo/verde
-    location: Optional[str] = None
-    competition_type: Optional[str] = None  # Tipo: PC, AL, C, M, R, etc.
-    
+    location: str | None = None
+    competition_type: str | None = None  # Tipo: PC, AL, C, M, R, etc.
+
     def __post_init__(self) -> None:
         # Asegurar URL absoluta
         if self.pdf_url and not self.pdf_url.startswith("http"):
             from src.config import settings
+
             self.pdf_url = f"{settings.fam_base_url}{self.pdf_url}"
 
 
@@ -48,21 +51,22 @@ class RawCompetition:
 class Event:
     """
     Prueba individual dentro de una competición.
-    
+
     Representa una prueba específica (ej: 400m masculino).
     """
+
     discipline: str  # Ej: "400", "Pértiga", "Altura"
     event_type: EventType  # carrera o concurso
     sex: Sex
     category: str = ""  # Ej: "Senior", "Sub23", "Juvenil"
-    scheduled_time: Optional[time] = None  # Hora programada (nullable)
-    
+    scheduled_time: time | None = None  # Hora programada (nullable)
+
     @property
     def display_name(self) -> str:
         """Nombre para mostrar: 'Disciplina Sexo'."""
         sex_label = "Masculino" if self.sex == Sex.MASCULINO else "Femenino"
         return f"{self.discipline} {sex_label}"
-    
+
     @property
     def subscription_key(self) -> str:
         """Clave única para suscripciones: 'disciplina_sexo'."""
@@ -73,33 +77,31 @@ class Event:
 class Competition:
     """
     Competición completa con todos sus datos parseados.
-    
+
     Incluye información del PDF y lista de pruebas.
     """
+
     name: str
     competition_date: date
     location: str
     pdf_url: str
-    pdf_hash: Optional[str] = None
+    pdf_hash: str | None = None
     has_modifications: bool = False
-    competition_type: Optional[str] = None
+    competition_type: str | None = None
     events: list[Event] = field(default_factory=list)
-    
+
     def get_events_by_type(self, event_type: EventType) -> list[Event]:
         """Filtra pruebas por tipo (carrera/concurso)."""
         return [e for e in self.events if e.event_type == event_type]
-    
+
     def get_events_by_sex(self, sex: Sex) -> list[Event]:
         """Filtra pruebas por sexo."""
         return [e for e in self.events if e.sex == sex]
-    
+
     def get_events_by_discipline(self, discipline: str) -> list[Event]:
         """Busca pruebas por disciplina (búsqueda parcial, case-insensitive)."""
         discipline_lower = discipline.lower()
-        return [
-            e for e in self.events 
-            if discipline_lower in e.discipline.lower()
-        ]
+        return [e for e in self.events if discipline_lower in e.discipline.lower()]
 
 
 # Mapeo de disciplinas conocidas para normalización
@@ -159,7 +161,7 @@ DISCIPLINE_ALIASES: dict[str, str] = {
 def normalize_discipline(discipline: str) -> str:
     """
     Normaliza el nombre de una disciplina.
-    
+
     Convierte variantes como "60 m" o "60m" a un formato estándar.
     """
     discipline_lower = discipline.strip().lower()
@@ -186,13 +188,21 @@ def detect_event_type(discipline: str) -> EventType:
     Detecta si una disciplina es carrera o concurso.
     """
     concurso_keywords = [
-        "altura", "longitud", "triple", "pértiga", "pertiga",
-        "peso", "disco", "martillo", "jabalina", "salto"
+        "altura",
+        "longitud",
+        "triple",
+        "pértiga",
+        "pertiga",
+        "peso",
+        "disco",
+        "martillo",
+        "jabalina",
+        "salto",
     ]
     discipline_lower = discipline.lower()
-    
+
     for keyword in concurso_keywords:
         if keyword in discipline_lower:
             return EventType.CONCURSO
-    
+
     return EventType.CARRERA

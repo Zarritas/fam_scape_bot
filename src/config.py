@@ -70,9 +70,7 @@ class Settings(BaseSettings):
         """Valida que la URL de la base de datos tenga un formato válido."""
         valid_prefixes = ("sqlite", "postgresql", "postgres")
         if not any(v.startswith(prefix) for prefix in valid_prefixes):
-            raise ValueError(
-                f"DATABASE_URL debe empezar con uno de: {valid_prefixes}"
-            )
+            raise ValueError(f"DATABASE_URL debe empezar con uno de: {valid_prefixes}")
         return v
 
 
@@ -80,7 +78,7 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """
     Obtiene la configuración del bot.
-    
+
     Usa lru_cache para evitar cargar el archivo .env múltiples veces.
     """
     return Settings()
