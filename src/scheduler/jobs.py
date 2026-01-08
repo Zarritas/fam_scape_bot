@@ -85,6 +85,7 @@ async def scraping_job() -> dict:
                                         pdf_content=pdf_content,
                                         name=raw_comp.name,
                                         pdf_url=raw_comp.pdf_url,
+                                        enrollment_url=raw_comp.enrollment_url,
                                         has_modifications=raw_comp.has_modifications,
                                         competition_type=raw_comp.competition_type,
                                     )
@@ -112,6 +113,7 @@ async def scraping_job() -> dict:
                                     competition_date=comp_date,
                                     location=raw_comp.location or "Madrid",
                                     pdf_url=raw_comp.pdf_url,
+                                    enrollment_url=raw_comp.enrollment_url,
                                     pdf_hash=calculate_pdf_hash(pdf_content)
                                     if pdf_content
                                     else None,
@@ -141,6 +143,7 @@ async def scraping_job() -> dict:
                                 location=competition.location,
                                 has_modifications=competition.has_modifications,
                                 competition_type=competition.competition_type,
+                                enrollment_url=competition.enrollment_url,
                                 events=events_data,
                             )
 
@@ -221,6 +224,10 @@ async def notification_job(bot=None) -> dict:
     if bot is None:
         logger.warning("Bot no configurado, saltando notificaciones")
         return stats
+
+    # Notificaciones desactivadas por cambio de funcionalidad
+    logger.info("Notificaciones automáticas desactivadas")
+    return stats
 
     session_factory = get_session_factory()
     today = date.today()

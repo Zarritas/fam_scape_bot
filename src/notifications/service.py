@@ -118,8 +118,10 @@ def format_notification_message(notifications: list[dict[str, Any]]) -> str:
             lines.append(f"  • {event.discipline} {sex_emoji}{time_str}")
 
         lines.append(f'\n<a href="{comp.pdf_url}">📄 Ver convocatoria</a>')
+        if comp.enrollment_url:
+            lines.append(f' | <a href="{comp.enrollment_url}">📝 Inscritos</a>')
 
-    lines.append("\n\n<i>Usa /mis_pruebas para ver tus suscripciones</i>")
+    lines.append("\n\n<i>Usa /buscar para encontrar más pruebas</i>")
 
     return "\n".join(lines)
 
@@ -181,3 +183,57 @@ async def send_calm_message_to_user(
         )
     except TelegramError as e:
         logger.error(f"Error enviando mensaje a usuario {telegram_id}: {e}")
+
+
+def format_competition_details(competition, events: list | None = None) -> str:
+    """
+    Formatea los detalles de una competición para mostrar al usuario.
+
+    Args:
+        competition: Objeto Competition
+        events: Lista de eventos (opcional)
+
+    Returns:
+        String formateado en HTML
+    """
+    lines = []
+
+    # Encabezado
+    date_str = competition.competition_date.strftime("%d/%m/%Y")
+    lines.append(f"<b>🏆 {competition.name}</b>")
+    lines.append(f"📅 <b>Fecha:</b> {date_str}")
+    lines.append(f"📍 <b>Lugar:</b> {competition.location}")
+
+    if competition.has_modifications:
+        lines.append("⚠️ <i>¡Atención! Convocatoria modificada</i>")
+
+    lines.append("")  # Separador
+
+    # Pruebas
+    if events:
+        lines.append("<b>🏃 Pruebas:</b>")
+        # Agrupar por disciplina para no repetir largas listas?
+        # Por ahora listado simple pero limpio
+        for event in events:
+            sex_emoji = "👨" if event.sex == "M" else ("👩" if event.sex == "F" else "👥")
+            time_str = (
+                f" ({event.scheduled_time.strftime('%H:%M')})" if event.scheduled_time else ""
+            )
+            lines.append(f"• {event.discipline} {sex_emoji}{time_str}")
+    else:
+        lines.append("ℹ️ <i>No se han detectado pruebas específicas o es una jornada general.</i>")
+        lines.append("<i>Consulta el reglamento para más detalles.</i>")
+
+    lines.append("")  # Separador
+
+    # Links
+    links = []
+    if competition.pdf_url:
+        links.append(f'<a href="{competition.pdf_url}">📄 Reglamento</a>')
+    if competition.enrollment_url:
+        links.append(f'<a href="{competition.enrollment_url}">📝 Inscritos</a>')
+
+    if links:
+        lines.append(" | ".join(links))
+
+    return "\n".join(lines)

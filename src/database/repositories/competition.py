@@ -61,13 +61,14 @@ class CompetitionRepository(BaseRepository[Competition]):
 
     async def upsert_with_hash(
         self,
-        pdf_url: str,
+        pdf_url: str | None,
         pdf_hash: str | None,
         name: str,
         competition_date: date,
         location: str,
         has_modifications: bool = False,
         competition_type: str | None = None,
+        enrollment_url: str | None = None,
         events: list[dict] | None = None,
     ) -> tuple[Competition, bool]:
         """
@@ -85,6 +86,7 @@ class CompetitionRepository(BaseRepository[Competition]):
             location: Lugar
             has_modifications: Si tiene marcador de modificaciones
             competition_type: Tipo de competición (PC, AL, etc.)
+            enrollment_url: URL de inscripción
             events: Lista opcional de eventos a crear
 
         Returns:
@@ -95,11 +97,14 @@ class CompetitionRepository(BaseRepository[Competition]):
 
         if existing:
             # Ya existe - verificar si el hash cambió
-            if existing.pdf_hash == pdf_hash:
+            # También actualizamos si ha cambiado la URL de inscritos
+            # aunque el hash del PDF sea el mismo
+            if existing.pdf_hash == pdf_hash and existing.enrollment_url == enrollment_url:
                 # Sin cambios
                 return existing, False
 
-            # Hash diferente - actualizar
+            # Actualizar
+            # Nota: Si solo cambia el enrollment_url, también actualizamos
             await self.update(
                 existing,
                 pdf_hash=pdf_hash,
@@ -108,6 +113,7 @@ class CompetitionRepository(BaseRepository[Competition]):
                 location=location,
                 has_modifications=has_modifications,
                 competition_type=competition_type,
+                enrollment_url=enrollment_url,
             )
 
             # Eliminar eventos antiguos y crear nuevos
@@ -133,6 +139,7 @@ class CompetitionRepository(BaseRepository[Competition]):
             location=location,
             has_modifications=has_modifications,
             competition_type=competition_type,
+            enrollment_url=enrollment_url,
         )
 
         # Crear eventos
@@ -164,3 +171,47 @@ class CompetitionRepository(BaseRepository[Competition]):
             select(func.count(Competition.id)).where(Competition.competition_date >= from_date)
         )
         return result.scalar_one()
+
+    async def get_by_event_type(
+        self,
+        discipline: str,
+        sex: str,
+        from_date: date | None = None,
+    ) -> Sequence[Competition]:
+        """
+        Obtiene competiciones que contienen una prueba específica.
+
+        Args:
+            discipline: Nombre de la disciplina (ej: "100m")
+            sex: Sexo ("M", "F" o "B" para ambos)
+            from_date: Fecha inicial (default: hoy)
+        """
+        if from_date is None:
+            from_date = date.today()
+
+        stmt = (
+            select(Competition)
+            .join(Competition.events)
+            .where(
+                Competition.competition_date >= from_date,
+                Event.discipline == discipline,
+            )
+            .options(selectinload(Competition.events))
+            .distinct()
+            .order_by(Competition.competition_date)
+        )
+
+        if sex != "B":
+            stmt = stmt.where(Event.sex == sex)
+
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
+    async def get_by_exact_date(self, target_date: date) -> Sequence[Competition]:
+        """Obtiene competiciones para una fecha específica."""
+        result = await self.session.execute(
+            select(Competition)
+            .where(Competition.competition_date == target_date)
+            .options(selectinload(Competition.events))
+        )
+        return result.scalars().all()

@@ -178,84 +178,121 @@ class WebScraper:
         """
         Parsea una fila de la tabla para extraer datos de competición.
 
-        Estructura de columnas:
-        0: Fecha | 1: Límite | 2: Competición | 3: Lugar | 4: regl. | 5: insc. | 6: | 7: Tipo
+        Usa la celda del reglamento (PDF) como ancla para encontrar:
+        - Nombre: ancla - 2
+        - Lugar: ancla - 1
+        - Inscritos: ancla + 1
         """
         cells = row.find_all("td")
-        if len(cells) < 5:
-            # Probablemente es la fila de encabezado (th) o fila incompleta
+        if not cells:
             return None
 
-        # Columna 4: Enlace al reglamento (normalmente PDF, a veces link externo)
-        regl_cell = cells[4] if len(cells) > 4 else None
-        regl_link = None
-        if regl_cell:
-            # Buscar enlace que tenga el texto "regl." o que tenga title "Reglamento"
-            regl_link = regl_cell.find("a", string=lambda x: x and "regl" in x.lower())
-            if not regl_link:
-                regl_link = regl_cell.find("a", title=lambda x: x and "Reglamento" in x)
-            if not regl_link:
-                # Fallback: primer enlace en la celda
-                regl_link = regl_cell.find("a")
+        # 1. Encontrar celda ancla (Reglamento/PDF)
+        regl_index = -1
 
-        if not regl_link:  # noqa: SIM102
-            # También puede estar en un span con clase 'reglamento_circular'
-            if regl_cell:
-                span = regl_cell.find("span", class_="reglamento_circular")
-                if span:
-                    regl_link = span.find("a")
+        # Búsqueda por contenido (más robusta)
+        for i, cell in enumerate(cells):
+            # Buscar enlace con "regl" en texto o título
+            if (
+                cell.find("a", string=lambda x: x and "regl" in x.lower())
+                or cell.find("a", title=lambda x: x and "Reglamento" in x)
+                or cell.find("span", class_="reglamento_circular")
+            ):
+                regl_index = i
+                break
+
+        # Fallback a posición fija si no se detecta (el calendario suele ser fijo)
+        if regl_index == -1:
+            if len(cells) > 4 and cells[4].find("a"):
+                regl_index = 4
+            else:
+                return None
+
+        # 2. Extraer URL del PDF (Ancla)
+        regl_cell = cells[regl_index]
+        regl_link = regl_cell.find("a")
+        if not regl_link:
+            # Intentar dentro de span
+            span = regl_cell.find("span", class_="reglamento_circular")
+            if span:
+                regl_link = span.find("a")
 
         if not regl_link:
-            # No tiene link de reglamento, saltar esta fila
             return None
 
         pdf_url = regl_link.get("href", "")
         if not pdf_url:
             return None
 
-        # Hacer URL absoluta
         pdf_url = urljoin(self.base_url, pdf_url)
 
-        # Columna 2: Nombre de la competición
-        name_cell = cells[2] if len(cells) > 2 else None
+        # 3. Extraer Nombre (Ancla - 2)
+        name_index = regl_index - 2
         name = "Competición sin nombre"
-        if name_cell:
-            # El nombre está en un enlace dentro de la celda
+        if name_index >= 0 and name_index < len(cells):
+            name_cell = cells[name_index]
             name_link = name_cell.find("a")
             name = name_link.get_text(strip=True) if name_link else name_cell.get_text(strip=True)
 
-        # Columna 0: Fecha (formato: "03.01 (S)" o "17y18.01 (S-D)")
-        date_cell = cells[0] if len(cells) > 0 else None
-        date_str = ""
-        if date_cell:
-            date_str = date_cell.get_text(strip=True)
-
-        # Columna 3: Lugar
-        location_cell = cells[3] if len(cells) > 3 else None
+        # 4. Extraer Lugar (Ancla - 1)
+        loc_index = regl_index - 1
         location = None
-        if location_cell:
-            location = location_cell.get_text(strip=True)
-            if not location:
-                location = None
+        if loc_index >= 0 and loc_index < len(cells):
+            location = cells[loc_index].get_text(strip=True) or None
 
-        # Columna 7: Tipo de competición
-        type_cell = cells[7] if len(cells) > 7 else None
+        # 5. Extraer Inscritos (Ancla + 1)
+        enroll_index = regl_index + 1
+        enrollment_url = None
+        if enroll_index < len(cells):
+            enroll_cell = cells[enroll_index]
+            enroll_link = enroll_cell.find("a")
+            if enroll_link:
+                e_url = enroll_link.get("href", "")
+                if e_url:
+                    enrollment_url = urljoin(self.base_url, e_url)
+
+        # 6. Extraer Fecha (Siempre columna 0?)
+        # Asumimos columna 0 para fecha
+        date_str = ""
+        if len(cells) > 0:
+            date_str = cells[0].get_text(strip=True)
+
+        # 7. Tipo de competición (Última columna o Ancla + 3?)
+        # La estructura típica es: ... | Regl | Insc | ? | Tipo
+        # Regl=4, Insc=5, ?=6, Tipo=7. Diff = +3
+        type_index = regl_index + 3
         comp_type = None
-        if type_cell:
-            comp_type = type_cell.get_text(strip=True)
+        if type_index < len(cells):
+            comp_type = cells[type_index].get_text(strip=True)
 
-        # Detectar si tiene modificaciones (fondo verde/amarillo en el style del tr)
-        # Las filas con estilo tienen: style='background:#EBFFAA;font-style:italic;'
+        # Detectar modificaciones
         has_modifications = self._has_highlight_background(row)
 
         return RawCompetition(
             name=name,
             date_str=self._normalize_date(date_str, month, year),
             pdf_url=pdf_url,
+            enrollment_url=enrollment_url,
             has_modifications=has_modifications,
             location=location,
             competition_type=comp_type,
         )
+
+    def _extract_enrollment_url(self, cells: list[Tag]) -> str | None:
+        """Extrae la URL de inscripción de la celda correspondiente."""
+        if len(cells) <= 5:
+            return None
+
+        cell = cells[5]
+        link = cell.find("a")
+        if not link:
+            return None
+
+        url = link.get("href", "")
+        if not url:
+            return None
+
+        return urljoin(self.base_url, url)
 
     def _normalize_date(self, date_str: str, month: int, year: int) -> str:  # noqa: ARG002
         """

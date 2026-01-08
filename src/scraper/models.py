@@ -34,8 +34,9 @@ class RawCompetition:
 
     name: str
     date_str: str  # Fecha como string (ej: "11 de enero" o "03/01")
-    pdf_url: str
+    pdf_url: str | None = None
     has_modifications: bool = False  # Si tiene fondo amarillo/verde
+    enrollment_url: str | None = None
     location: str | None = None
     competition_type: str | None = None  # Tipo: PC, AL, C, M, R, etc.
 
@@ -84,7 +85,8 @@ class Competition:
     name: str
     competition_date: date
     location: str
-    pdf_url: str
+    pdf_url: str | None = None
+    enrollment_url: str | None = None
     pdf_hash: str | None = None
     has_modifications: bool = False
     competition_type: str | None = None

@@ -21,21 +21,25 @@ from src.bot.handlers.admin import (
     last_errors_command,
     status_command,
 )
-from src.bot.handlers.competitions import check_subscriptions_command, upcoming_command
-from src.bot.handlers.start import help_command, start_command
-from src.bot.handlers.subscription import (
+from src.bot.handlers.competitions import (
+    upcoming_command,
+)
+from src.bot.handlers.search import (
+    SELECT_DATE,
     SELECT_DISCIPLINE,
+    SELECT_METHOD,
     SELECT_SEX,
     SELECT_TYPE,
     cancel_handler,
+    date_selected,
     discipline_selected,
-    my_subscriptions_command,
+    method_selected,
+    search_command,
+    search_slider_callback,
     sex_selected,
-    subscribe_command,
     type_selected,
-    unsubscribe_callback,
-    unsubscribe_command,
 )
+from src.bot.handlers.start import help_command, start_command
 from src.config import settings
 from src.database.engine import close_db, init_db
 from src.scheduler.runner import setup_scheduler, start_scheduler, stop_scheduler
@@ -58,12 +62,25 @@ def create_application() -> Application:
     application.add_handler(CommandHandler("ayuda", help_command))
     application.add_handler(CommandHandler("help", help_command))
 
-    # Conversation handler para suscripciones
-    subscribe_conv = ConversationHandler(
-        entry_points=[CommandHandler("suscribir", subscribe_command)],
+    # Conversation handler para búsquedas
+    search_conv = ConversationHandler(
+        entry_points=[
+            CommandHandler("buscar", search_command),
+            CommandHandler("prueba", search_command),
+        ],
         states={
+            SELECT_METHOD: [
+                CallbackQueryHandler(method_selected, pattern=r"^method:"),
+                CallbackQueryHandler(cancel_handler, pattern=r"^cancel$"),
+            ],
+            SELECT_DATE: [
+                CallbackQueryHandler(date_selected, pattern=r"^date:"),
+                CallbackQueryHandler(method_selected, pattern=r"^back:date$"),
+                CallbackQueryHandler(cancel_handler, pattern=r"^cancel$"),
+            ],
             SELECT_TYPE: [
                 CallbackQueryHandler(type_selected, pattern=r"^type:"),
+                CallbackQueryHandler(method_selected, pattern=r"^back:method$"),
                 CallbackQueryHandler(cancel_handler, pattern=r"^cancel$"),
             ],
             SELECT_DISCIPLINE: [
@@ -80,17 +97,13 @@ def create_application() -> Application:
         fallbacks=[
             CommandHandler("cancelar", cancel_handler),
         ],
+        allow_reentry=True,
     )
-    application.add_handler(subscribe_conv)
+    application.add_handler(search_conv)
 
     # Otros handlers de usuario
-    application.add_handler(CommandHandler("mis_pruebas", my_subscriptions_command))
-    application.add_handler(CommandHandler("desuscribir", unsubscribe_command))
     application.add_handler(CommandHandler("proximas", upcoming_command))
-    application.add_handler(CommandHandler("revisar", check_subscriptions_command))
-
-    # Callback para desuscripción
-    application.add_handler(CallbackQueryHandler(unsubscribe_callback, pattern=r"^unsub:"))
+    application.add_handler(CallbackQueryHandler(search_slider_callback, pattern="^search:"))
     application.add_handler(CallbackQueryHandler(cancel_handler, pattern=r"^cancel$"))
 
     # Handlers de admin
@@ -177,7 +190,3 @@ async def shutdown(application: Application) -> None:
         logger.error(f"Error cerrando BD: {e}")
 
     logger.info("Bot cerrado correctamente.")
-
-
-if __name__ == "__main__":
-    asyncio.run(main())

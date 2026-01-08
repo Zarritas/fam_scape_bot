@@ -137,6 +137,7 @@ class PDFParser:
         pdf_content: bytes,
         name: str = "",
         pdf_url: str = "",
+        enrollment_url: str | None = None,
         has_modifications: bool = False,
         competition_type: str | None = None,
     ) -> Competition:
@@ -164,30 +165,98 @@ class PDFParser:
                 # Extraer todo el texto
                 full_text = ""
                 all_tables: list[list[list[str]]] = []
+                lines = []
+
+                # Lógica para encontrar el inicio con "HORARIO"
+                start_parsing = False
+                horario_found = False
+
+                # Primero comprobar si existe "HORARIO" en algún lugar para decidir modo
+                for page in pdf.pages:
+                    if "HORARIO" in (page.extract_text() or ""):
+                        horario_found = True
+                        break
+
+                # Si no se encuentra "HORARIO", procesamos todo (fallback)
+                if not horario_found:
+                    start_parsing = True
 
                 for page in pdf.pages:
                     text = page.extract_text() or ""
-                    full_text += text + "\n"
 
-                    # Extraer tablas de cada página
-                    tables = page.extract_tables() or []
-                    all_tables.extend(tables)
+                    # Si aún no hemos empezado, buscamos la marca
+                    if not start_parsing:
+                        if "HORARIO" in text:
+                            start_parsing = True
+                            # Opcional: Podríamos intentar filtrar contenido previo en esta misma página
+                            # pero asumimos que si está "HORARIO", el contenido relevante empieza ahí
+                        else:
+                            # Saltamos esta página
+                            continue
 
-                # Extraer fecha
-                competition_date = self._extract_date(full_text)
+                    if start_parsing:
+                        full_text += text + "\n"
+                        # Extraer tablas de cada página procesada
+                        tables = page.extract_tables() or []
+                        all_tables.extend(tables)
+
+                        # Extraer líneas limpias
+                        page_lines = [line.strip() for line in text.split("\n") if line.strip()]
+
+                        # Si es la página donde encontramos HORARIO, intentar filtrar líneas previas
+                        if "HORARIO" in text:
+                            try:
+                                # Encontrar índice de la línea con HORARIO
+                                for i, line in enumerate(page_lines):
+                                    if "HORARIO" in line:
+                                        page_lines = page_lines[i:]
+                                        break
+                            except Exception:
+                                pass
+
+                        lines.extend(page_lines)
+
+                # Extraer fecha (buscamos en todo el texto original por si está en cabecera)
+                # A VECES la fecha está en la primera página que nos hemos saltado.
+                # CAMBIO: Extraer fecha y lugar del texto COMPLETO (todas las páginas)
+                # porque suelen estar en la portada.
+
+                full_text_all = ""
+                for page in pdf.pages:
+                    full_text_all += (page.extract_text() or "") + "\n"
+
+                competition_date = self._extract_date(full_text_all)
                 if not competition_date:
                     logger.warning("No se pudo extraer fecha del PDF")
-                    competition_date = date.today()
+                    competition_date = False
 
                 # Extraer lugar
-                location = self._extract_location(full_text)
+                location = self._extract_location(full_text_all)
                 if not location:
                     location = "Lugar no especificado"
 
-                # Extraer pruebas de las tablas
+                # 1️⃣ Intentar por tablas
                 events = self._extract_events_from_tables(all_tables)
 
-                # Si no hay tablas, intentar extraer del texto
+                # 2️⃣ Intentar también por líneas de texto (horarios)
+                # Esto es útil si hay tablas rotas o eventos fuera de tablas (ej: Pértiga)
+                line_events = self._extract_events_from_schedule_lines(lines)
+
+                for ne in line_events:
+                    # Chequeo más simple: si ya existe (disc, sex, time), ignorar
+                    if not any(
+                        e.discipline == ne.discipline
+                        and e.sex == ne.sex
+                        and (
+                            e.scheduled_time == ne.scheduled_time
+                            if e.scheduled_time and ne.scheduled_time
+                            else True
+                        )
+                        for e in events
+                    ):
+                        events.append(ne)
+
+                # 3️⃣ Último fallback: Texto libre sin estructura horaria
                 if not events:
                     events = self._extract_events_from_text(full_text)
 
@@ -200,6 +269,7 @@ class PDFParser:
                     competition_date=competition_date,
                     location=location,
                     pdf_url=pdf_url,
+                    enrollment_url=enrollment_url,
                     pdf_hash=pdf_hash,
                     has_modifications=has_modifications,
                     competition_type=competition_type,
@@ -481,20 +551,16 @@ class PDFParser:
         )
 
     def _find_discipline_in_row(self, row: list[str]) -> str:
-        """
-        Busca una disciplina válida en cualquier celda de la fila.
-        """
         discipline_patterns = [
-            r"\d{2,5}\s*m",  # 100m, 1500m, etc.
-            r"\d+\s*(?:metros?|m\.?)",
+            r"\d{2,5}\s*m(?:\.|etros?)?",
+            r"\d+\s*(?:ml|marcha)",
             r"vallas?",
-            r"obstáculos",
+            r"obstáculos?",
             r"relevos?",
             r"altura",
             r"longitud",
             r"triple",
-            r"pértiga",
-            r"pertiga",
+            r"pértiga|pertiga",
             r"peso",
             r"disco",
             r"martillo",
@@ -505,12 +571,11 @@ class PDFParser:
         for cell in row:
             if not cell:
                 continue
-            cell_str = str(cell).lower()
+            text = cell.lower()
 
             for pattern in discipline_patterns:
-                if re.search(pattern, cell_str):
-                    # Retornar la celda completa como disciplina
-                    return str(cell).strip()
+                if re.search(pattern, text):
+                    return cell.strip()
 
         return ""
 
@@ -604,5 +669,56 @@ class PDFParser:
                             sex=sex,
                         )
                     )
+
+        return events
+
+    def _extract_events_from_schedule_lines(self, lines: list[str]) -> list[Event]:
+        """
+        Extrae pruebas a partir de líneas de texto (horarios tipo FAM).
+        """
+        events: list[Event] = []
+        last_time: time | None = None
+
+        for line in lines:
+            line_clean = re.sub(r"\s+", " ", line).strip()
+
+            # 1. Detectar hora en la línea
+            parsed_time = self._parse_time(line_clean)
+            if parsed_time:
+                last_time = parsed_time
+
+            if not last_time:
+                continue
+
+            # 2. Detectar disciplina
+            discipline = self._find_discipline_in_row([line_clean])
+            if not discipline:
+                continue
+
+            # Limpiar disciplina de horas
+            discipline = re.sub(r"\d{1,2}[:\.]\d{2}", "", discipline).strip()
+            discipline = normalize_discipline(discipline)
+
+            # 3. Detectar tipo
+            event_type = detect_event_type(discipline)
+
+            # 4. Detectar sexo
+            sex = self._extract_sex_from_row([line_clean], None)
+
+            # 5. Evitar duplicados claros
+            if any(
+                e.discipline == discipline and e.sex == sex and e.scheduled_time == last_time
+                for e in events
+            ):
+                continue
+
+            events.append(
+                Event(
+                    discipline=discipline,
+                    event_type=event_type,
+                    sex=sex,
+                    scheduled_time=last_time,
+                )
+            )
 
         return events

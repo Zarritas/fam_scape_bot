@@ -8,6 +8,46 @@ suscripciones, etc.
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 
+def get_search_method_keyboard() -> InlineKeyboardMarkup:
+    """Teclado para seleccionar método de búsqueda."""
+    keyboard = [
+        [
+            InlineKeyboardButton("📊 Por Prueba", callback_data="method:type"),
+            InlineKeyboardButton("📅 Por Fecha", callback_data="method:date"),
+        ],
+        [
+            InlineKeyboardButton("❌ Cancelar", callback_data="cancel"),
+        ],
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_dates_keyboard(calendar_dates: list) -> InlineKeyboardMarkup:
+    """
+    Teclado para seleccionar fecha.
+    Args:
+        calendar_dates: lista de fechas (date objects or strings)
+    """
+    keyboard = []
+    # Agrupar por filas de 2 o 3
+    row = []
+    for d in calendar_dates:
+        # data: "date:2026-01-07"
+        date_str = d.strftime("%d/%m")
+        callback = f"date:{d.isoformat()}"
+        row.append(InlineKeyboardButton(date_str, callback_data=callback))
+
+        if len(row) == 3:
+            keyboard.append(row)
+            row = []
+
+    if row:
+        keyboard.append(row)
+
+    keyboard.append([InlineKeyboardButton("❌ Cancelar", callback_data="cancel")])
+    return InlineKeyboardMarkup(keyboard)
+
+
 def get_event_type_keyboard() -> InlineKeyboardMarkup:
     """Teclado para seleccionar tipo de prueba: Carreras o Concursos."""
     keyboard = [
@@ -16,6 +56,7 @@ def get_event_type_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("🎯 Concursos", callback_data="type:concurso"),
         ],
         [
+            InlineKeyboardButton("⬅️ Volver", callback_data="back:method"),
             InlineKeyboardButton("❌ Cancelar", callback_data="cancel"),
         ],
     ]
@@ -152,3 +193,22 @@ def get_admin_confirm_scrape_keyboard() -> InlineKeyboardMarkup:
         ],
     ]
     return InlineKeyboardMarkup(keyboard)
+
+
+def subscription_keyboard(index: int, total: int, prefix: str = "subs"):
+    buttons = []
+
+    if total > 1:
+        row = []
+        if index > 0:
+            row.append(InlineKeyboardButton("◀️", callback_data=f"{prefix}:prev:{index}"))
+        if index < total - 1:
+            row.append(InlineKeyboardButton("▶️", callback_data=f"{prefix}:next:{index}"))
+        buttons.append(row)
+
+    return InlineKeyboardMarkup(buttons)
+
+
+def build_subscription_text(slides: list[str], index: int) -> str:
+    total = len(slides)
+    return f"<b>Página {index + 1} / {total}</b>\n\n{slides[index]}"

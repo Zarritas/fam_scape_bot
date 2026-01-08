@@ -51,9 +51,7 @@ docker-compose up -d
 
 ### Usuario
 - `/start` - Iniciar bot y registrarse
-- `/suscribir` - Suscribirse a pruebas
-- `/desuscribir` - Cancelar suscripciones
-- `/mis_pruebas` - Ver suscripciones actuales
+- `/buscar` - Buscar pruebas
 - `/proximas` - Ver próximas competiciones
 - `/ayuda` - Mostrar ayuda
 
