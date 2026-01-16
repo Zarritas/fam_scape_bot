@@ -2,10 +2,14 @@
 Configuración global de pytest y fixtures compartidos.
 """
 
+import asyncio
 import os
 from pathlib import Path
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from src.database.models import Base
 
 # Establecer variables de entorno para tests antes de importar config
 os.environ.setdefault("TELEGRAM_BOT_TOKEN", "test_token_12345")
@@ -19,6 +23,43 @@ os.environ.setdefault("LOG_FORMAT", "text")
 def fixtures_dir() -> Path:
     """Directorio de fixtures para tests."""
     return Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture(scope="session")
+def event_loop():
+    """Create an instance of the default event loop for the test session."""
+    loop = asyncio.get_event_loop_policy().new_event_loop()
+    yield loop
+    loop.close()
+
+
+@pytest.fixture(scope="session")
+async def db_engine():
+    """Engine de base de datos para tests."""
+    from src.database.models import Base
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:", echo=False)
+
+    # Crear todas las tablas
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
+    yield engine
+
+    # Limpiar después de los tests
+    await engine.dispose()
+
+
+@pytest.fixture
+async def db_session(db_engine):
+    """Sesión de base de datos para cada test."""
+    session_factory = async_sessionmaker(db_engine, expire_on_commit=False)
+
+    session = session_factory()
+    try:
+        yield session
+    finally:
+        await session.close()
 
 
 @pytest.fixture

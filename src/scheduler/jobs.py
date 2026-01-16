@@ -236,6 +236,8 @@ async def notification_job(bot=None) -> dict:
         "errors": 0,
     }
 
+    today = date.today()
+
     if bot is None:
         logger.warning("Bot no configurado, saltando notificaciones")
         return stats
@@ -250,9 +252,9 @@ async def notification_job(bot=None) -> dict:
             notif_repo = NotificationRepository(session)
             error_repo = ErrorRepository(session)
 
-            # Obtener competiciones de mañana
-            competitions = await comp_repo.get_upcoming(from_date=tomorrow)
-            competitions = [c for c in competitions if c.competition_date == tomorrow]
+            # Obtener competiciones futuras y filtrar las de mañana
+            all_future = await comp_repo.get_upcoming(from_date=today)
+            competitions = [c for c in all_future if c.competition_date == tomorrow]
 
             logger.info(f"Encontradas {len(competitions)} competiciones para mañana")
 
@@ -307,6 +309,7 @@ async def notification_job(bot=None) -> dict:
 
                         # Registrar cada notificación enviada en los logs
                         for notif in notifications:
+                            competition = notif["competition"]
                             message_hash = calculate_message_hash(
                                 f"{user_id}_{notif['event'].id}_{competition.competition_date.isoformat()}"
                             )
