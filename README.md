@@ -110,6 +110,10 @@ pytest --cov=src --cov-report=html
    # O manualmente agregar al authorized_keys del servidor
    cat ~/.ssh/id_rsa.pub  # Copiar esta línea
    # Pegar en /root/.ssh/authorized_keys en el servidor
+
+   # CODIFICAR la clave privada para GitHub Secrets (IMPORTANTE)
+   cat ~/.ssh/id_rsa | base64 -w 0
+   # Copia la salida completa y pégala en el secret VPS_SSH_KEY
    ```
 
 3. **Secrets de GitHub (para CI/CD):**
