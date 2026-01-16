@@ -80,14 +80,103 @@ pytest tests/ -v
 pytest --cov=src --cov-report=html
 ```
 
+## 🚀 Despliegue
+
+### Configuración del VPS (IONOS)
+
+1. **Preparar el servidor:**
+   ```bash
+   # Conectarse al VPS
+   ssh root@tu-servidor-ionos
+
+   # Ejecutar script de configuración automática
+   curl -fsSL https://raw.githubusercontent.com/tu-usuario/bot-telegram/production/scripts/setup-vps.sh | bash
+
+   # O manualmente:
+   # Instalar Docker y Docker Compose
+   curl -fsSL https://get.docker.com -o get-docker.sh
+   sh get-docker.sh
+   apt-get install -y docker-compose-plugin
+
+   # Crear directorio del proyecto
+   mkdir -p /opt/atletismo-bot
+   cd /opt/atletismo-bot
+   ```
+
+2. **Configurar variables de entorno:**
+   Editar `.env` en el servidor con tus credenciales reales.
+
+3. **Configurar Docker Hub:**
+   - Crea una cuenta en [Docker Hub](https://hub.docker.com/)
+   - Ve a Account Settings → Security → New Access Token
+   - Crea un token con permisos de read/write
+
+4. **Configurar SSH Key:**
+   ```bash
+   # En tu máquina local, generar clave SSH
+   ssh-keygen -t rsa -b 4096 -C "tu-email@ejemplo.com"
+
+   # Copiar clave pública al servidor
+   ssh-copy-id root@tu-servidor-ionos
+
+   # O manualmente agregar al authorized_keys del servidor
+   cat ~/.ssh/id_rsa.pub  # Copiar esta línea
+   # Pegar en /root/.ssh/authorized_keys en el servidor
+   ```
+
+5. **Secrets de GitHub (para CI/CD):**
+   En tu repositorio de GitHub, configura estos secrets:
+   - `DOCKERHUB_USERNAME`: Tu usuario de Docker Hub
+   - `DOCKERHUB_TOKEN`: Token de acceso de Docker Hub
+   - `VPS_HOST`: IP o dominio de tu servidor IONOS
+   - `VPS_USER`: Usuario SSH (normalmente `root`)
+   - `VPS_SSH_KEY`: Contenido de tu clave privada SSH (`cat ~/.ssh/id_rsa`)
+
+6. **Variables de entorno en el servidor:**
+   ```bash
+   # En /opt/atletismo-bot/.env
+   DOCKERHUB_USERNAME=tu_usuario_dockerhub
+   TELEGRAM_BOT_TOKEN=tu_token_bot_telegram
+   ADMIN_USER_ID=tu_id_admin
+   DATABASE_URL=sqlite+aiosqlite:///./data/bot.db
+   LOG_LEVEL=INFO
+   LOG_FORMAT=text
+   ```
+
+### Despliegue Automático
+
+Los pushes a la rama `production` activarán automáticamente el despliegue:
+1. Construcción de imagen Docker
+2. Push a Docker Hub
+3. Despliegue en el VPS via SSH
+
 ## 🐳 Docker
 
+### Desarrollo Local
 ```bash
 # Construir imagen
 docker build -f docker/Dockerfile -t atletismo-bot .
 
 # Ejecutar con docker-compose
 docker-compose -f docker/docker-compose.yml up -d
+```
+
+### Producción
+El despliegue se maneja automáticamente via GitHub Actions usando `docker-compose.prod.yml`.
+
+### Monitoreo
+```bash
+# Ver logs del contenedor
+docker logs atletismo-bot
+
+# Ver estado de contenedores
+docker ps
+
+# Reiniciar servicios
+docker compose restart
+
+# Ver uso de recursos
+docker stats atletismo-bot
 ```
 
 ## 📁 Estructura del Proyecto

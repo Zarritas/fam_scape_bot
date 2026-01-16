@@ -1,3 +1,6 @@
+# Archivo docker-compose para producción en el servidor
+# Copiar este archivo al directorio /opt/atletismo-bot en el VPS
+
 version: "3.8"
 
 services:
