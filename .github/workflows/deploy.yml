@@ -25,7 +25,15 @@ jobs:
           host: ${{ env.VPS_HOST }}
           username: ${{ env.VPS_USER }}
           key: ${{ env.VPS_SSH_KEY }}
+          port: 22
+          timeout: 30s
+          debug: true
           script: |
+            # Verificar conectividad SSH
+            echo "Verificando conexión SSH..."
+            whoami
+            hostname
+
             # Crear directorio si no existe
             mkdir -p /opt/atletismo-bot
 
