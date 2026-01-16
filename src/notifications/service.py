@@ -97,11 +97,8 @@ def format_notification_message(notifications: list[dict[str, Any]]) -> str:
         comp = comp_data["competition"]
         events = comp_data["events"]
 
-        # Formatear fecha
-        date_str = comp.competition_date.strftime("%d/%m/%Y")
-
         lines.append(f"\n<b>📅 {comp.name}</b>")
-        lines.append(f"📆 Fecha: {date_str}")
+        lines.append(f"📆 {comp.fecha_display}")
         lines.append(f"📍 Lugar: {comp.location}")
 
         if comp.has_modifications:

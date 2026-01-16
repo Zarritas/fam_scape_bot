@@ -4,6 +4,7 @@ Modelos ORM de SQLAlchemy para la base de datos.
 Define todas las tablas y relaciones del sistema.
 """
 
+import json
 from datetime import date, datetime, time
 
 from sqlalchemy import (
@@ -38,6 +39,7 @@ class Competition(Base):
     Competición de atletismo.
 
     Representa una competición completa con su PDF asociado.
+    Puede tener fechas múltiples para competiciones que duran varios días.
     """
 
     __tablename__ = "competitions"
@@ -51,6 +53,10 @@ class Competition(Base):
     pdf_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     has_modifications: Mapped[bool] = mapped_column(Boolean, default=False)
     competition_type: Mapped[str | None] = mapped_column(String(20), nullable=True)
+
+    # Campo para fechas adicionales (JSON array de fechas)
+    fechas_adicionales: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now()
     )
@@ -65,6 +71,62 @@ class Competition(Base):
         cascade="all, delete-orphan",
         lazy="selectin",
     )
+
+    @property
+    def fechas_adicionales_list(self) -> list[date]:
+        """Devuelve la lista de fechas adicionales como objetos date."""
+        if not self.fechas_adicionales:
+            return []
+
+        try:
+            from datetime import datetime
+            dates_str = json.loads(self.fechas_adicionales)
+            dates = []
+            for date_str in dates_str:
+                if isinstance(date_str, str):
+                    # Convertir string "2026-01-18" a date object
+                    d = datetime.strptime(date_str, "%Y-%m-%d").date()
+                    dates.append(d)
+            return sorted(dates)
+        except (json.JSONDecodeError, ValueError):
+            return []
+
+    @fechas_adicionales_list.setter
+    def fechas_adicionales_list(self, dates: list[date]):
+        """Establece la lista de fechas adicionales."""
+        if not dates:
+            self.fechas_adicionales = None
+            return
+
+        try:
+            dates_str = [d.isoformat() for d in sorted(dates)]
+            self.fechas_adicionales = json.dumps(dates_str)
+        except Exception:
+            self.fechas_adicionales = None
+
+    @property
+    def todas_las_fechas(self) -> list[date]:
+        """Devuelve todas las fechas de la competición (principal + adicionales)."""
+        fechas = [self.competition_date]
+        fechas.extend(self.fechas_adicionales_list)
+        return sorted(set(fechas))  # Eliminar duplicados y ordenar
+
+    @property
+    def fecha_display(self) -> str:
+        """Devuelve la representación de fecha(s) para mostrar al usuario."""
+        todas_fechas = self.todas_las_fechas
+
+        if len(todas_fechas) == 1:
+            # Una sola fecha
+            return todas_fechas[0].strftime("%d/%m/%Y")
+        elif len(todas_fechas) == 2:
+            # Dos fechas
+            return f"{todas_fechas[0].strftime('%d/%m')} - {todas_fechas[1].strftime('%d/%m/%Y')}"
+        else:
+            # Múltiples fechas
+            primera = todas_fechas[0].strftime("%d/%m")
+            ultima = todas_fechas[-1].strftime("%d/%m/%Y")
+            return f"{primera} - {ultima} ({len(todas_fechas)} días)"
 
     def __repr__(self) -> str:
         return f"<Competition(id={self.id}, name='{self.name}', date={self.competition_date})>"

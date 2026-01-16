@@ -30,15 +30,17 @@ class RawCompetition:
     Datos de una competición extraídos del calendario web.
 
     Representa la información básica antes de parsear el PDF.
+    Soporta competiciones multi-día con fechas adicionales.
     """
 
     name: str
-    date_str: str  # Fecha como string (ej: "11 de enero" o "03/01")
+    date_str: str  # Fecha como string (ej: "11 de enero" o "11/01")
     pdf_url: str | None = None
     has_modifications: bool = False  # Si tiene fondo amarillo/verde
     enrollment_url: str | None = None
     location: str | None = None
     competition_type: str | None = None  # Tipo: PC, AL, C, M, R, etc.
+    fechas_adicionales: list[str] = field(default_factory=list)  # Fechas adicionales en formato "DD/MM/YYYY"
 
     def __post_init__(self) -> None:
         # Asegurar URL absoluta

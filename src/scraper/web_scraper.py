@@ -160,14 +160,18 @@ class WebScraper:
         Parsea una fila de la tabla real del calendario FAM.
 
         Estructura: Fecha | Competición | Lugar | Documentos | Inscripciones
+        Maneja fechas múltiples como "17y18.01 (S-D)"
         """
         cells = row.find_all("td")
         if len(cells) < 5:
             return None
 
-        # Columna 0: Fecha (ej: "03/01/2026")
+        # Columna 0: Fecha (ej: "03/01/2026" o "17y18.01 (S-D)")
         date_cell = cells[0]
         date_str = date_cell.get_text(strip=True)
+
+        # Parsear fechas múltiples
+        fechas_adicionales = self._extract_additional_dates(date_str)
 
         # Columna 1: Competición (nombre)
         name_cell = cells[1]
@@ -204,7 +208,8 @@ class WebScraper:
         if not name or not pdf_url:
             return None
 
-        return RawCompetition(
+        # Crear RawCompetition con soporte para fechas adicionales
+        competition = RawCompetition(
             name=name,
             date_str=date_str,
             pdf_url=pdf_url,
@@ -213,6 +218,12 @@ class WebScraper:
             location=location,
             competition_type=competition_type,
         )
+
+        # Agregar fechas adicionales como atributo personalizado
+        if fechas_adicionales:
+            competition.fechas_adicionales = fechas_adicionales
+
+        return competition
 
     def _parse_competition_row(
         self,
@@ -338,6 +349,46 @@ class WebScraper:
             return None
 
         return urljoin(self.base_url, url)
+
+    def _extract_additional_dates(self, date_str: str) -> list[str]:
+        """
+        Extrae fechas adicionales de strings como "17y18.01 (S-D)".
+
+        Returns:
+            Lista de fechas adicionales en formato "DD/MM/YYYY"
+        """
+        additional_dates = []
+
+        try:
+            # Caso: "17y18.01 (S-D)" -> ["18/01/2026"]
+            range_match = re.match(r"(\d{1,2})y(\d{1,2})\.(\d{2})", date_str)
+            if range_match:
+                day1, day2, month_num = range_match.groups()
+                # Solo agregar días adicionales (el día 1 es la fecha principal)
+                if day1 != day2:
+                    # Necesitamos el año del contexto. Por ahora asumimos el año actual
+                    # En una implementación completa, esto vendría del parámetro year
+                    from datetime import date
+                    current_year = date.today().year
+                    additional_dates.append(f"{int(day2):02d}/{int(month_num):02d}/{current_year}")
+
+            # Caso: "17,18,19/01" -> ["18/01/2026", "19/01/2026"]
+            comma_match = re.match(r"(\d{1,2})(?:,(\d{1,2}))(?:,(\d{1,2}))?[/-](\d{1,2})", date_str)
+            if comma_match:
+                days = [g for g in comma_match.groups()[:-1] if g]
+                month_num = comma_match.groups()[-1]
+
+                if len(days) > 1:
+                    from datetime import date
+                    current_year = date.today().year
+                    # El primer día es la fecha principal, agregar los demás
+                    for day in days[1:]:
+                        additional_dates.append(f"{int(day):02d}/{int(month_num):02d}/{current_year}")
+
+        except Exception as e:
+            logger.warning(f"Error parseando fechas adicionales de '{date_str}': {e}")
+
+        return additional_dates
 
     def _normalize_date(self, date_str: str, month: int, year: int) -> str:  # noqa: ARG002
         """

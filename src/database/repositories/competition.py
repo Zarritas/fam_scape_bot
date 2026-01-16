@@ -79,6 +79,7 @@ class CompetitionRepository(BaseRepository[Competition]):
         competition_type: str | None = None,
         enrollment_url: str | None = None,
         events: list[dict] | None = None,
+        fechas_adicionales: list[date] | None = None,
     ) -> tuple[Competition, bool]:
         """
         Inserta o actualiza una competición basándose en el hash del PDF.
@@ -125,6 +126,10 @@ class CompetitionRepository(BaseRepository[Competition]):
                 enrollment_url=enrollment_url,
             )
 
+            # Actualizar fechas adicionales
+            if fechas_adicionales is not None:
+                existing.fechas_adicionales_list = fechas_adicionales
+
             # Eliminar eventos antiguos y crear nuevos
             if events is not None:
                 # Eliminar eventos existentes
@@ -157,6 +162,10 @@ class CompetitionRepository(BaseRepository[Competition]):
                 event = Event(competition_id=competition.id, **event_data)
                 self.session.add(event)
             await self.session.flush()
+
+        # Establecer fechas adicionales
+        if fechas_adicionales is not None:
+            competition.fechas_adicionales_list = fechas_adicionales
 
         return competition, True
 

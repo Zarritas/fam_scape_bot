@@ -135,6 +135,22 @@ async def scraping_job() -> dict:
                                 for e in competition.events
                             ]
 
+                            # Preparar fechas adicionales
+                            fechas_adicionales_parsed = None
+                            if hasattr(raw_comp, 'fechas_adicionales') and raw_comp.fechas_adicionales:
+                                try:
+                                    fechas_adicionales_parsed = []
+                                    for fecha_str in raw_comp.fechas_adicionales:
+                                        # Convertir "DD/MM/YYYY" a date object
+                                        parts = fecha_str.split('/')
+                                        if len(parts) == 3:
+                                            day, month, year = parts
+                                            fecha_obj = date(int(year), int(month), int(day))
+                                            fechas_adicionales_parsed.append(fecha_obj)
+                                except (ValueError, IndexError) as e:
+                                    logger.warning(f"Error parseando fechas adicionales: {e}")
+                                    fechas_adicionales_parsed = None
+
                             # 4. Guardar en BD (upsert)
                             _, is_new_or_updated = await comp_repo.upsert_with_hash(
                                 pdf_url=competition.pdf_url,
@@ -146,6 +162,7 @@ async def scraping_job() -> dict:
                                 competition_type=competition.competition_type,
                                 enrollment_url=competition.enrollment_url,
                                 events=events_data,
+                                fechas_adicionales=fechas_adicionales_parsed,
                             )
 
                             if is_new_or_updated:
