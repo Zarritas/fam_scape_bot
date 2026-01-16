@@ -32,6 +32,15 @@ class CompetitionRepository(BaseRepository[Competition]):
         )
         return result.scalar_one_or_none()
 
+    async def get_by_pdf_url_and_name(self, pdf_url: str, name: str) -> Competition | None:
+        """Obtiene una competición por su URL de PDF y nombre."""
+        result = await self.session.execute(
+            select(Competition)
+            .where(Competition.pdf_url == pdf_url, Competition.name == name)
+            .options(selectinload(Competition.events))
+        )
+        return result.scalar_one_or_none()
+
     async def get_by_pdf_hash(self, pdf_hash: str) -> Competition | None:
         """Obtiene una competición por su hash de PDF."""
         result = await self.session.execute(
@@ -93,7 +102,7 @@ class CompetitionRepository(BaseRepository[Competition]):
             Tupla (Competition, is_new_or_updated)
             - is_new_or_updated es True si se creó o actualizó
         """
-        existing = await self.get_by_pdf_url(pdf_url)
+        existing = await self.get_by_pdf_url_and_name(pdf_url, name) if pdf_url else None
 
         if existing:
             # Ya existe - verificar si el hash cambió
@@ -215,3 +224,27 @@ class CompetitionRepository(BaseRepository[Competition]):
             .options(selectinload(Competition.events))
         )
         return result.scalars().all()
+
+    async def delete_past_competitions(self, before_date: date) -> int:
+        """
+        Elimina competiciones con fecha anterior a before_date.
+
+        Returns:
+            Número de competiciones eliminadas.
+        """
+        from sqlalchemy import delete
+
+        # Obtener IDs de competiciones a eliminar
+        result = await self.session.execute(
+            select(Competition.id).where(Competition.competition_date < before_date)
+        )
+        competition_ids = result.scalars().all()
+
+        if not competition_ids:
+            return 0
+
+        # Eliminar competiciones (los eventos se eliminan automáticamente por cascade)
+        delete_stmt = delete(Competition).where(Competition.competition_date < before_date)
+        result = await self.session.execute(delete_stmt)
+
+        return result.rowcount

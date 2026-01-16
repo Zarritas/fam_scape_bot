@@ -45,6 +45,7 @@ async def scraping_job() -> dict:
         "competitions_found": 0,
         "competitions_new": 0,
         "competitions_updated": 0,
+        "competitions_deleted": 0,
         "errors": 0,
     }
 
@@ -72,12 +73,12 @@ async def scraping_job() -> dict:
                     for raw_comp in raw_competitions:
                         try:
                             # 1. Determinar si es un PDF o link externo
-                            is_pdf = ".pdf" in raw_comp.pdf_url.lower()
+                            is_pdf = raw_comp.pdf_url and ".pdf" in raw_comp.pdf_url.lower()
 
                             competition = None
                             pdf_content = None
 
-                            if is_pdf:
+                            if is_pdf and raw_comp.pdf_url is not None:
                                 try:
                                     # Descargar y parsear PDF
                                     pdf_content = scraper.download_pdf(raw_comp.pdf_url)
@@ -175,12 +176,26 @@ async def scraping_job() -> dict:
 
             await session.commit()
 
+            # Limpiar competiciones pasadas
+            try:
+                deleted_count = await comp_repo.delete_past_competitions(date.today())
+                stats["competitions_deleted"] = deleted_count
+                logger.info(f"Eliminadas {deleted_count} competiciones pasadas")
+            except Exception as e:
+                stats["errors"] += 1
+                logger.error(f"Error eliminando competiciones pasadas: {e}")
+                await error_repo.log_error(
+                    component="scraper",
+                    error=e,
+                    message="Error eliminando competiciones pasadas",
+                )
+
     except Exception as e:
         stats["errors"] += 1
         logger.error(f"Error fatal en scraping job: {e}")
         # Intentar registrar el error
         try:
-            async with session_factory() as session:  # noqa: F821
+            async with get_session() as session:
                 error_repo = ErrorRepository(session)
                 await error_repo.log_error(
                     component="scraper",
@@ -189,7 +204,7 @@ async def scraping_job() -> dict:
                 )
                 await session.commit()
         except Exception:
-            pass  # Si falla el log, al menos continuar
+            pass
 
     logger.info(f"Scraping completado: {stats}")
     return stats
