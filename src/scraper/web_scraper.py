@@ -120,54 +120,99 @@ class WebScraper:
             raise WebScraperError(f"Error obteniendo calendario: {e}") from e
 
         try:
-            return self._parse_calendar_html(response.text, month, year)
+            return self.parse_calendar_html(response.text)
         except Exception as e:
             logger.error(f"Error parseando HTML: {e}")
             raise WebScraperError(f"Error parseando calendario: {e}") from e
 
-    def _parse_calendar_html(
-        self,
-        html: str,
-        month: int,
-        year: int,
-    ) -> list[RawCompetition]:
+    def parse_calendar_html(self, html: str) -> list[RawCompetition]:
         """
-        Parsea el HTML del calendario y extrae las competiciones.
+        Parsea el HTML del calendario FAM y extrae las competiciones.
 
-        El calendario tiene una tabla con clase 'calendario':
-        - Columna 0: Fecha (ej: "03.01 (S)")
-        - Columna 1: Límite inscripción
-        - Columna 2: Nombre de la competición (enlace a página de detalle)
-        - Columna 3: Lugar
-        - Columna 4: Enlace al reglamento PDF ("regl.")
-        - Columna 5: Enlace a inscritos
-        - Columna 6: vacío
-        - Columna 7: Tipo (PC, AL, C, M, R)
+        Estructura HTML real:
+        - Tabla con clase "table table-striped table-hover"
+        - Columnas: Fecha | Competición | Lugar | Documentos | Inscripciones
+        - Los PDFs están en la columna "Documentos" como enlaces
         """
         soup = BeautifulSoup(html, "lxml")
         competitions: list[RawCompetition] = []
 
-        # Buscar la tabla con clase 'calendario'
-        calendar_table = soup.find("table", class_="calendario")
-        if not calendar_table:
-            # Fallback: buscar cualquier tabla en div#calendario
-            calendar_div = soup.find("div", id="calendario")
-            if calendar_div:
-                calendar_table = calendar_div.find("table")
+        # Buscar tabla del calendario (la estructura real del sitio FAM)
+        calendar_table = soup.find("table", class_="table table-striped table-hover")
 
         if not calendar_table:
             logger.warning("No se encontró la tabla del calendario")
             return []
 
-        rows = calendar_table.find_all("tr")
+        # Saltar el header (primera fila)
+        rows = calendar_table.find_all("tr")[1:]
 
         for row in rows:
-            competition = self._parse_competition_row(row, month, year)
+            competition = self._parse_real_competition_row(row)
             if competition:
                 competitions.append(competition)
 
         logger.info(f"Encontradas {len(competitions)} competiciones")
         return competitions
+
+    def _parse_real_competition_row(self, row: Tag) -> RawCompetition | None:
+        """
+        Parsea una fila de la tabla real del calendario FAM.
+
+        Estructura: Fecha | Competición | Lugar | Documentos | Inscripciones
+        """
+        cells = row.find_all("td")
+        if len(cells) < 5:
+            return None
+
+        # Columna 0: Fecha (ej: "03/01/2026")
+        date_cell = cells[0]
+        date_str = date_cell.get_text(strip=True)
+
+        # Columna 1: Competición (nombre)
+        name_cell = cells[1]
+        name = name_cell.get_text(strip=True)
+
+        # Columna 2: Lugar
+        location_cell = cells[2]
+        location = location_cell.get_text(strip=True) or None
+
+        # Columna 3: Documentos (contiene el enlace al PDF)
+        docs_cell = cells[3]
+        pdf_url = None
+        pdf_link = docs_cell.find("a")
+        if pdf_link:
+            pdf_href = pdf_link.get("href")
+            if pdf_href:
+                pdf_url = urljoin(self.base_url, pdf_href)
+
+        # Columna 4: Inscripciones (contiene el enlace de inscripción)
+        enroll_cell = cells[4]
+        enrollment_url = None
+        enroll_link = enroll_cell.find("a")
+        if enroll_link:
+            enroll_href = enroll_link.get("href")
+            if enroll_href:
+                enrollment_url = urljoin(self.base_url, enroll_href)
+
+        # Detectar modificaciones (por ahora no hay indicador visual claro)
+        has_modifications = False
+
+        # Tipo de competición (extraer del nombre o dejar como None por ahora)
+        competition_type = None
+
+        if not name or not pdf_url:
+            return None
+
+        return RawCompetition(
+            name=name,
+            date_str=date_str,
+            pdf_url=pdf_url,
+            enrollment_url=enrollment_url,
+            has_modifications=has_modifications,
+            location=location,
+            competition_type=competition_type,
+        )
 
     def _parse_competition_row(
         self,
@@ -389,27 +434,54 @@ class WebScraper:
         months: list[tuple[int, int]],
     ) -> list[RawCompetition]:
         """
-        Obtiene competiciones para múltiples meses.
+        Obtiene competiciones para múltiples meses desde el calendario completo.
 
         Args:
-            months: Lista de tuplas (mes, año)
+            months: Lista de tuplas (mes, año) - usado para filtrado posterior
 
         Returns:
-            Lista combinada de competiciones (sin duplicados por URL)
+            Lista combinada de competiciones
         """
-        all_competitions: dict[str, RawCompetition] = {}
+        try:
+            # Obtener el calendario completo (sin parámetros de mes/año específicos)
+            url = f"{self.base_url}{self.calendar_path}"
+            logger.info(f"Obteniendo calendario completo: {url}")
 
-        for month, year in months:
-            try:
-                competitions = self.get_competitions(month, year)
-                for comp in competitions:
-                    # Usar URL como clave para evitar duplicados
-                    all_competitions[comp.pdf_url] = comp
-            except WebScraperError as e:
-                logger.error(f"Error en mes {month}/{year}: {e}")
-                # Continuar con otros meses aunque falle uno
+            response = self.session.get(url, timeout=self.timeout)
+            response.raise_for_status()
 
-        return list(all_competitions.values())
+            # Parsear todas las competiciones
+            all_competitions = self.parse_calendar_html(response.text)
+
+            # Filtrar por los meses solicitados
+            filtered_competitions = []
+            for comp in all_competitions:
+                # Intentar parsear la fecha para filtrar
+                try:
+                    if "/" in comp.date_str:
+                        day_month = comp.date_str.split("/")[0:2]
+                        if len(day_month) == 2:
+                            month = int(day_month[1])
+                            # Asumir año actual para filtrado básico
+                            current_year = date.today().year
+                            if (month, current_year) in months:
+                                filtered_competitions.append(comp)
+                        else:
+                            # Si no se puede parsear, incluirla
+                            filtered_competitions.append(comp)
+                    else:
+                        # Si no tiene formato esperado, incluirla
+                        filtered_competitions.append(comp)
+                except (ValueError, IndexError):
+                    # Si hay error en el parseo, incluirla
+                    filtered_competitions.append(comp)
+
+            logger.info(f"Filtradas {len(filtered_competitions)} competiciones para los meses solicitados")
+            return filtered_competitions
+
+        except Exception as e:
+            logger.error(f"Error obteniendo calendario completo: {e}")
+            raise WebScraperError(f"Error obteniendo calendario: {e}") from e
 
 
 def get_current_and_next_months() -> list[tuple[int, int]]:

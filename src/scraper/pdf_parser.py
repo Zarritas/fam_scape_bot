@@ -35,83 +35,8 @@ class PDFParserError(Exception):
 
 class PDFParser:
     """
-    Parser para PDFs de convocatorias de competiciones.
+    Parser para PDFs de convocatorias de competiciones FAM.
     """
-
-    # Disciplinas comunes para detección por contenido
-    COMMON_DISCIPLINES = [
-        "60",
-        "100",
-        "200",
-        "300",
-        "400",
-        "500",
-        "600",
-        "800",
-        "1.000",
-        "1500",
-        "3000",
-        "60m",
-        "100m",
-        "200m",
-        "300m",
-        "400m",
-        "500m",
-        "600m",
-        "800m",
-        "1000m",
-        "1500m",
-        "vallas",
-        "mv",
-        "Altura",
-        "Longitud",
-        "Pértiga",
-        "Triple",
-        "Peso",
-        "Disco",
-        "Jabalina",
-        "Martillo",
-        "Marcha",
-        "Cross",
-        "Relevo",
-        "Combinada",
-    ]
-
-    # Patrones para extraer información
-    DATE_PATTERNS = [
-        # "11 de enero de 2026"
-        r"(\d{1,2})\s+de\s+(\w+)\s+de\s+(\d{4})",
-        # "11/01/2026" o "11-01-2026"
-        r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})",
-        # "Fecha: 11 de enero"
-        r"[Ff]echa[:\s]+(\d{1,2})\s+(?:de\s+)?(\w+)",
-    ]
-
-    LOCATION_PATTERNS = [
-        r"[Ll]ugar[:\s]+(?:de\s+|del\s+)?([A-Za-záéíóúñÁÉÍÓÚÑ\.\s,]+)",
-        r"[Ii]nstalaci[oó]n[:\s]+([A-Za-záéíóúñÁÉÍÓÚÑ\.\s,]+)",
-        r"[Ss]ede[:\s]+([A-Za-záéíóúñÁÉÍÓÚÑ\.\s,]+)",
-        # Pista conocidas
-        r"(Gallur|Vallehermoso|Moratalaz|Getafe|Polideportivo[^,\n\.]+)",
-    ]
-
-    # Keywords para identificar secciones de pruebas
-    TRACK_KEYWORDS = [
-        "carreras",
-        "pruebas de pista",
-        "velocidad",
-        "fondo",
-        "vallas",
-        "relevos",
-        "obstáculos",
-    ]
-
-    FIELD_KEYWORDS = [
-        "concursos",
-        "saltos",
-        "lanzamientos",
-        "pruebas de campo",
-    ]
 
     # Meses en español
     MONTHS_ES = {
@@ -129,9 +54,6 @@ class PDFParser:
         "diciembre": 12,
     }
 
-    def __init__(self):
-        pass
-
     def parse(
         self,
         pdf_content: bytes,
@@ -142,7 +64,12 @@ class PDFParser:
         competition_type: str | None = None,
     ) -> Competition:
         """
-        Parsea un PDF de convocatoria y extrae toda la información.
+        Parsea un PDF de convocatoria FAM y extrae toda la información.
+
+        Estructura típica de PDFs FAM:
+        - Página 1: Información básica (lugar, fecha, organizador)
+        - Páginas siguientes: Sección HORARIO con tablas de CARRERAS y CONCURSOS
+        - Tablas con columnas: tiempos, pruebas, sexo, series, etc.
 
         Args:
             pdf_content: Contenido binario del PDF
@@ -158,116 +85,52 @@ class PDFParser:
             PDFParserError: Si hay error en el parsing
         """
         pdf_hash = calculate_pdf_hash(pdf_content)
-        logger.info(f"Parseando PDF: {name or pdf_url} (hash: {pdf_hash[:8]}...)")
+        logger.info(f"Parseando PDF FAM: {name or pdf_url} (hash: {pdf_hash[:8]}...)")
 
         try:
             with pdfplumber.open(BytesIO(pdf_content)) as pdf:
-                # Extraer todo el texto
+                # Extraer texto completo de todas las páginas
                 full_text = ""
-                all_tables: list[list[list[str]]] = []
-                lines = []
-
-                # Lógica para encontrar el inicio con "HORARIO"
-                start_parsing = False
-                horario_found = False
-
-                # Primero comprobar si existe "HORARIO" en algún lugar para decidir modo
-                for page in pdf.pages:
-                    if "HORARIO" in (page.extract_text() or ""):
-                        horario_found = True
-                        break
-
-                # Si no se encuentra "HORARIO", procesamos todo (fallback)
-                if not horario_found:
-                    start_parsing = True
+                all_tables = []
 
                 for page in pdf.pages:
-                    text = page.extract_text() or ""
-
-                    # Si aún no hemos empezado, buscamos la marca
-                    if not start_parsing:
-                        if "HORARIO" in text:
-                            start_parsing = True
-                            # Opcional: Podríamos intentar filtrar contenido previo en esta misma página
-                            # pero asumimos que si está "HORARIO", el contenido relevante empieza ahí
-                        else:
-                            # Saltamos esta página
-                            continue
-
-                    if start_parsing:
+                    # Extraer texto con manejo de encoding
+                    try:
+                        text = page.extract_text() or ""
                         full_text += text + "\n"
-                        # Extraer tablas de cada página procesada
+                    except (UnicodeDecodeError, UnicodeEncodeError):
+                        logger.warning("Error de encoding en página, continuando...")
+                        continue
+
+                    # Extraer tablas
+                    try:
                         tables = page.extract_tables() or []
                         all_tables.extend(tables)
+                    except Exception as e:
+                        logger.warning(f"Error extrayendo tablas de página: {e}")
+                        continue
 
-                        # Extraer líneas limpias
-                        page_lines = [line.strip() for line in text.split("\n") if line.strip()]
+                # Extraer información básica
+                location = self._extract_location(full_text)
+                competition_date = self._extract_date(full_text)
 
-                        # Si es la página donde encontramos HORARIO, intentar filtrar líneas previas
-                        if "HORARIO" in text:
-                            try:
-                                # Encontrar índice de la línea con HORARIO
-                                for i, line in enumerate(page_lines):
-                                    if "HORARIO" in line:
-                                        page_lines = page_lines[i:]
-                                        break
-                            except Exception:
-                                pass
-
-                        lines.extend(page_lines)
-
-                # Extraer fecha (buscamos en todo el texto original por si está en cabecera)
-                # A VECES la fecha está en la primera página que nos hemos saltado.
-                # CAMBIO: Extraer fecha y lugar del texto COMPLETO (todas las páginas)
-                # porque suelen estar en la portada.
-
-                full_text_all = ""
-                for page in pdf.pages:
-                    full_text_all += (page.extract_text() or "") + "\n"
-
-                competition_date = self._extract_date(full_text_all)
+                # Si no se pudo extraer fecha, usar fecha por defecto
                 if not competition_date:
-                    logger.warning("No se pudo extraer fecha del PDF")
-                    competition_date = False
+                    competition_date = date.today()
+                    logger.warning("No se pudo extraer fecha, usando fecha actual")
 
-                # Extraer lugar
-                location = self._extract_location(full_text_all)
-                if not location:
-                    location = "Lugar no especificado"
-
-                # 1️⃣ Intentar por tablas
+                # Extraer eventos de las tablas
                 events = self._extract_events_from_tables(all_tables)
 
-                # 2️⃣ Intentar también por líneas de texto (horarios)
-                # Esto es útil si hay tablas rotas o eventos fuera de tablas (ej: Pértiga)
-                line_events = self._extract_events_from_schedule_lines(lines)
+                # Extraer nombre si no se proporcionó
+                if not name:
+                    name = self._extract_competition_name(full_text) or "Competición sin nombre"
 
-                for ne in line_events:
-                    # Chequeo más simple: si ya existe (disc, sex, time), ignorar
-                    if not any(
-                        e.discipline == ne.discipline
-                        and e.sex == ne.sex
-                        and (
-                            e.scheduled_time == ne.scheduled_time
-                            if e.scheduled_time and ne.scheduled_time
-                            else True
-                        )
-                        for e in events
-                    ):
-                        events.append(ne)
-
-                # 3️⃣ Último fallback: Texto libre sin estructura horaria
-                if not events:
-                    events = self._extract_events_from_text(full_text)
-
-                logger.info(
-                    f"Extraídos: fecha={competition_date}, lugar={location}, pruebas={len(events)}"
-                )
-
-                return Competition(
-                    name=name or self._extract_name(full_text),
+                # Crear objeto Competition
+                competition = Competition(
+                    name=name,
                     competition_date=competition_date,
-                    location=location,
+                    location=location or "Madrid",
                     pdf_url=pdf_url,
                     enrollment_url=enrollment_url,
                     pdf_hash=pdf_hash,
@@ -276,449 +139,180 @@ class PDFParser:
                     events=events,
                 )
 
+                logger.info(f"PDF parseado exitosamente: {len(events)} eventos encontrados")
+                return competition
+
         except Exception as e:
             logger.error(f"Error parseando PDF: {e}")
             raise PDFParserError(f"Error parseando PDF: {e}") from e
 
-    def _extract_date(self, text: str) -> date | None:
-        """
-        Extrae la fecha de la competición del texto.
-        """
-        for pattern in self.DATE_PATTERNS:
-            match = re.search(pattern, text, re.IGNORECASE)
+    def _extract_competition_name(self, text: str) -> str | None:
+        """Extrae el nombre de la competición del texto."""
+        # Buscar patrones comunes de nombres de competiciones
+        patterns = [
+            r"FEDERACIÓN DE ATLETISMO DE MADRID\s*\n\s*(.+?)\s*\n",
+            r"(.+?)\s*\n\s*LUGAR:",
+            r"(.+?)\s*\n\s*DIA:",
+        ]
+
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
             if match:
-                groups = match.groups()
-
-                if len(groups) == 3:
-                    day = int(groups[0])
-
-                    # Segundo grupo puede ser mes texto o número
-                    if groups[1].isdigit():
-                        month = int(groups[1])
-                    else:
-                        month = self.MONTHS_ES.get(groups[1].lower(), 0)
-
-                    # Tercer grupo es el año (o puede no existir)
-                    year = int(groups[2]) if len(groups) >= 3 and groups[2] else date.today().year
-
-                    if month and 1 <= day <= 31:
-                        try:
-                            return date(year, month, day)
-                        except ValueError:
-                            continue
-
-                elif len(groups) == 2:
-                    # Patrón sin año
-                    day = int(groups[0])
-                    month_str = groups[1].lower()
-                    month = self.MONTHS_ES.get(month_str, 0)
-                    year = date.today().year
-
-                    if month:
-                        try:
-                            return date(year, month, day)
-                        except ValueError:
-                            continue
+                name = match.group(1).strip()
+                if len(name) > 5:  # Evitar matches demasiado cortos
+                    return name
 
         return None
 
     def _extract_location(self, text: str) -> str | None:
-        """
-        Extrae el lugar de la competición del texto.
-        """
-        for pattern in self.LOCATION_PATTERNS:
-            match = re.search(pattern, text)
-            if match:
-                location = match.group(1).strip()
-                # Limpiar y limitar longitud
-                location = re.sub(r"\s+", " ", location)
-                if len(location) > 100:
-                    location = location[:100]
-                return location
+        """Extrae el lugar de la competición."""
+        # Buscar patrón "LUGAR:" seguido del nombre del lugar
+        match = re.search(r"LUGAR:\s*(.+?)(?:\n|$)", text, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+        return None
+
+    def _extract_date(self, text: str) -> date | None:
+        """Extrae la fecha de la competición."""
+        # Buscar patrón "DIA:" seguido de la fecha
+        match = re.search(r"DIA:\s*(.+?)(?:\n|$)", text, re.IGNORECASE)
+        if match:
+            date_str = match.group(1).strip()
+
+            # Intentar diferentes formatos de fecha
+            # Formato: 03/01/2026
+            date_match = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})", date_str)
+            if date_match:
+                day, month, year = date_match.groups()
+                try:
+                    return date(int(year), int(month), int(day))
+                except ValueError:
+                    pass
+
+            # Formato: 17 y 18/01/2026
+            date_match = re.search(r"(\d{1,2})\s*y\s*(\d{1,2})[/-](\d{1,2})[/-](\d{4})", date_str)
+            if date_match:
+                # Para fechas múltiples, usar la primera fecha
+                day1, day2, month, year = date_match.groups()
+                try:
+                    return date(int(year), int(month), int(day1))
+                except ValueError:
+                    pass
 
         return None
 
-    def _extract_name(self, text: str) -> str:
-        """
-        Intenta extraer el nombre de la competición del texto.
-        """
-        # Buscar en las primeras líneas
-        lines = text.split("\n")[:10]
-
-        keywords = [
-            "campeonato",
-            "copa",
-            "trophy",
-            "trofeo",
-            "memorial",
-            "meeting",
-            "control",
-            "pruebas",
-            "jornada",
-        ]
-
-        for line in lines:
-            line_lower = line.lower()
-            for keyword in keywords:
-                if keyword in line_lower:
-                    # Limpiar el nombre
-                    name = line.strip()
-                    name = re.sub(r"\s+", " ", name)
-                    if len(name) > 150:
-                        name = name[:150]
-                    return name
-
-        return "Competición"
-
-    def _extract_events_from_tables(
-        self,
-        tables: list[list[list[str]]],
-    ) -> list[Event]:
-        """
-        Extrae pruebas de las tablas del PDF.
-        """
-        events: list[Event] = []
-        last_time = None
+    def _extract_events_from_tables(self, tables: list) -> list[Event]:
+        """Extrae eventos de las tablas del PDF."""
+        events = []
 
         for table in tables:
-            if not table:
+            if not table or len(table) < 2:
                 continue
 
-            table_events = self._parse_events_table(table, initial_time=last_time)
-            events.extend(table_events)
+            # Determinar si es tabla de CARRERAS o CONCURSOS
+            header = table[0] if table[0] else []
+            header_text = " ".join(str(cell) for cell in header if cell).upper()
 
-            # Actualizar last_time con el último tiempo válido encontrado en la tabla
-            for e in reversed(table_events):
-                if e.scheduled_time:
-                    last_time = e.scheduled_time
-                    break
+            if "CARRERAS" in header_text:
+                event_type = EventType.CARRERA
+            elif "CONCURSOS" in header_text:
+                event_type = EventType.CONCURSO
+            else:
+                # Intentar detectar por contenido de filas
+                sample_row = table[1] if len(table) > 1 else []
+                sample_text = " ".join(str(cell) for cell in sample_row if cell).upper()
+
+                if any(keyword in sample_text for keyword in ["SERIE", "CARRERA", "METROS"]):
+                    event_type = EventType.CARRERA
+                elif any(keyword in sample_text for keyword in ["ALTURA", "PESO", "DISCO", "PÉRTIGA"]):
+                    event_type = EventType.CONCURSO
+                else:
+                    continue
+
+            # Procesar filas de datos (saltar header)
+            for row in table[1:]:
+                if not row or len(row) < 3:
+                    continue
+
+                try:
+                    event = self._parse_event_row(row, event_type)
+                    if event:
+                        events.append(event)
+                except Exception as e:
+                    logger.warning(f"Error parseando fila de evento: {e}")
+                    continue
 
         return events
 
-    def _parse_events_table(
-        self,
-        table: list[list[str]],
-        initial_time: time | None = None,
-    ) -> list[Event]:
-        """
-        Parsea una tabla individual de pruebas.
-        """
-        events: list[Event] = []
-
-        # 1. Intentar detectar columnas por cabecera
-        header_row = table[0] if table else []
-        discipline_col = None
-        sex_col = None
-        time_col = None
-        category_col = None
-
-        for i, cell in enumerate(header_row):
-            if not cell:
-                continue
-            cell_lower = str(cell).lower()
-
-            if any(kw in cell_lower for kw in ["prueba", "disciplina", "evento"]):
-                discipline_col = i
-            elif any(kw in cell_lower for kw in ["sexo", "género", "cat"]):
-                sex_col = i
-            elif any(
-                kw in cell_lower for kw in ["hora", "tiempo", "horario", "inicio", "comienzo"]
-            ):
-                time_col = i
-            elif any(kw in cell_lower for kw in ["categoría", "categoria"]):
-                category_col = i
-
-        start_index = 1
-
-        # 2. Si no se detectaron columnas clave, intentar detectar por contenido de las primeras filas
-        if discipline_col is None or (time_col is None and sex_col is None):
-            # Probar en las primeras 3 filas para detectar columnas (heurística)
-            for row in table[:3]:
-                for i, cell in enumerate(row):
-                    if not cell:
-                        continue
-                    val = str(cell).strip()
-                    # Si detectamos una hora en esta columna
-                    if time_col is None and re.search(r"\d{1,2}[:\.]\d{2}", val):
-                        time_col = i
-                    # Si detectamos sexo M o F
-                    if sex_col is None and val.upper() in ["M", "F", "M-F", "H", "M ASC", "FEM"]:
-                        sex_col = i
-                    # Si detectamos una disciplina conocida d
-                    if discipline_col is None:  # noqa: SIM102
-                        if any(d.lower() in val.lower() for d in self.COMMON_DISCIPLINES):
-                            discipline_col = i
-
-            # Si detectamos algo, es una tabla sin cabecera o la cabecera era de datos
-            if discipline_col is not None:
-                start_index = 0
-
-        # 3. Procesar filas de datos
-        last_time = initial_time
-        for row in table[start_index:]:
-            if not row or all(not cell for cell in row):
-                continue
-
-            event = self._parse_event_row(
-                row,
-                discipline_col=discipline_col,
-                sex_col=sex_col,
-                time_col=time_col,
-                category_col=category_col,
-            )
-
-            if event:
-                # Si no tiene hora pero el anterior sí, heredarla (común en bloques de pruebas)
-                if not event.scheduled_time and last_time:
-                    event.scheduled_time = last_time
-                elif event.scheduled_time:
-                    last_time = event.scheduled_time
-
-                events.append(event)
-
-        return events
-
-    def _parse_event_row(
-        self,
-        row: list[str],
-        discipline_col: int | None,
-        sex_col: int | None,
-        time_col: int | None,
-        category_col: int | None,
-    ) -> Event | None:
-        """
-        Parsea una fila de la tabla de pruebas.
-        """
-        # Limpiar celdas
-        row = [str(c or "").strip() for c in row]
-        if all(not c for c in row):
+    def _parse_event_row(self, row: list, event_type: EventType) -> Event | None:
+        """Parsea una fila de tabla para extraer información de evento."""
+        if len(row) < 4:
             return None
 
-        # 1. Obtener hora (prioridad alta)
+        # Unir celdas que puedan estar divididas
+        row_text = [str(cell).strip() for cell in row if cell and str(cell).strip()]
+
+        if len(row_text) < 3:
+            return None
+
+        # Extraer hora (primer campo que contenga hora)
         scheduled_time = None
-        if time_col is not None and time_col < len(row):
-            scheduled_time = self._parse_time(row[time_col])
-
-        # Fallback: buscar hora en toda la fila si no se encontró
-        if not scheduled_time:
-            for cell in row:
-                st = self._parse_time(cell)
-                if st:
-                    scheduled_time = st
-                    break
-
-        # 2. Obtener disciplina
         discipline = ""
-        if discipline_col is not None and discipline_col < len(row):
-            discipline = row[discipline_col]
-        else:
-            discipline = self._find_discipline_in_row(row)
+        sex = Sex.MASCULINO  # default
+        category = ""
+
+        for cell in row_text:
+            # Buscar hora (HH:MM)
+            time_match = re.search(r"(\d{1,2}):(\d{2})", cell)
+            if time_match and not scheduled_time:
+                hour, minute = time_match.groups()
+                try:
+                    scheduled_time = time(int(hour), int(minute))
+                except ValueError:
+                    pass
+
+            # Buscar disciplina (metros, saltos, lanzamientos)
+            if not discipline:
+                # Buscar patrones de disciplina
+                disc_match = re.search(r"(\d+)\s*(?:ml|m\.?|metros?)", cell, re.IGNORECASE)
+                if disc_match:
+                    discipline = f"{disc_match.group(1)}m"
+                elif "ALTURA" in cell.upper():
+                    discipline = "altura"
+                elif "LONGITUD" in cell.upper():
+                    discipline = "longitud"
+                elif "TRIPLE" in cell.upper():
+                    discipline = "triple"
+                elif "PESO" in cell.upper():
+                    discipline = "peso"
+                elif "DISCO" in cell.upper():
+                    discipline = "disco"
+                elif "MARTILLO" in cell.upper():
+                    discipline = "martillo"
+                elif "JABALINA" in cell.upper():
+                    discipline = "jabalina"
+                elif "PÉRTIGA" in cell.upper() or "PERTIGA" in cell.upper():
+                    discipline = "pértiga"
+
+            # Determinar sexo
+            if "F" in cell.upper() or "FEMENINO" in cell.upper():
+                sex = Sex.FEMENINO
+            elif "M" in cell.upper() or "MASCULINO" in cell.upper():
+                sex = Sex.MASCULINO
 
         if not discipline:
             return None
 
-        # Limpiar disciplina de horas (HH:MM o HH.MM) y palabras extra
-        if discipline:
-            # Normalizar espacios y saltos de línea
-            discipline = str(discipline).replace("\n", " ")
-            # Eliminar todos los patrones de hora (HH:MM o HH.MM)
-            discipline = re.sub(r"\d{1,2}[:\.]\d{2}", "", discipline).strip()
-            # Eliminar múltiples espacios
-            discipline = re.sub(r"\s+", " ", discipline).strip()
-            # Eliminar "serie X" si estorba
-            discipline = re.sub(r"[Ss]erie\s*\d+", "", discipline).strip()
-
         # Normalizar disciplina
-        discipline = normalize_discipline(discipline)
-
-        # Detectar tipo de evento
-        event_type = detect_event_type(discipline)
-
-        # 3. Obtener sexo
-        sex = self._extract_sex_from_row(row, sex_col)
-
-        # 4. Obtener categoría
-        category = ""
-        if category_col is not None and category_col < len(row):
-            category = row[category_col]
-
-        return Event(
-            discipline=discipline,
-            event_type=event_type,
-            sex=sex,
-            category=category,
-            scheduled_time=scheduled_time,
-        )
-
-    def _find_discipline_in_row(self, row: list[str]) -> str:
-        discipline_patterns = [
-            r"\d{2,5}\s*m(?:\.|etros?)?",
-            r"\d+\s*(?:ml|marcha)",
-            r"vallas?",
-            r"obstáculos?",
-            r"relevos?",
-            r"altura",
-            r"longitud",
-            r"triple",
-            r"pértiga|pertiga",
-            r"peso",
-            r"disco",
-            r"martillo",
-            r"jabalina",
-            r"marcha",
-        ]
-
-        for cell in row:
-            if not cell:
-                continue
-            text = cell.lower()
-
-            for pattern in discipline_patterns:
-                if re.search(pattern, text):
-                    return cell.strip()
-
-        return ""
-
-    def _extract_sex_from_row(
-        self,
-        row: list[str],
-        sex_col: int | None,
-    ) -> Sex:
-        """
-        Extrae el sexo de una fila de pruebas.
-        """
-        # Buscar en columna específica
-        if sex_col is not None and sex_col < len(row):
-            cell = str(row[sex_col] or "").lower()
-            if "f" in cell or "fem" in cell or "muj" in cell:
-                return Sex.FEMENINO
-            elif "m" in cell or "mas" in cell or "hom" in cell:
-                return Sex.MASCULINO
-
-        # Buscar en toda la fila
-        row_text = " ".join(str(c or "") for c in row).lower()
-
-        if any(kw in row_text for kw in ["femenino", "fem.", "mujeres", " f "]):
-            return Sex.FEMENINO
-        elif any(kw in row_text for kw in ["masculino", "mas.", "hombres", " m "]):
-            return Sex.MASCULINO
-
-        # Por defecto masculino (más común en los PDFs históricos)
-        return Sex.MASCULINO
-
-    def _parse_time(self, time_str: str) -> time | None:
-        """
-        Parsea una hora en formato HH:MM.
-        """
-        if not time_str:
+        normalized_discipline = normalize_discipline(discipline)
+        if not normalized_discipline:
             return None
 
-        # Patrón HH:MM o HH.MM
-        match = re.search(r"(\d{1,2})[:\.](\d{2})", time_str)
-        if match:
-            hour = int(match.group(1))
-            minute = int(match.group(2))
-            if 0 <= hour <= 23 and 0 <= minute <= 59:
-                return time(hour, minute)
+        return Event(
+            discipline=normalized_discipline,
+            event_type=event_type,
+            sex=sex,
+            scheduled_time=scheduled_time,
+            category=category or "",
+        )
 
-        return None
-
-    def _extract_events_from_text(self, text: str) -> list[Event]:
-        """
-        Fallback: extrae pruebas del texto cuando no hay tablas.
-        """
-        events: list[Event] = []
-
-        # Patrones para pruebas comunes
-        discipline_patterns = [
-            (r"(\d{2,5})\s*m(?:etros?)?", EventType.CARRERA),
-            (r"(\d+)\s*(?:metros? )?vallas?", EventType.CARRERA),
-            (r"(\d+)\s*(?:metros? )?obstáculos?", EventType.CARRERA),
-            (r"(altura)", EventType.CONCURSO),
-            (r"(longitud)", EventType.CONCURSO),
-            (r"(triple\s+salto?)", EventType.CONCURSO),
-            (r"(pértiga|pertiga)", EventType.CONCURSO),
-            (r"(peso)", EventType.CONCURSO),
-            (r"(disco)", EventType.CONCURSO),
-            (r"(martillo)", EventType.CONCURSO),
-            (r"(jabalina)", EventType.CONCURSO),
-        ]
-
-        for pattern, event_type in discipline_patterns:
-            for match in re.finditer(pattern, text, re.IGNORECASE):
-                discipline = match.group(1)
-                if event_type == EventType.CARRERA and discipline.isdigit():
-                    discipline = f"{discipline}m"
-
-                discipline = normalize_discipline(discipline)
-
-                # Buscar contexto para determinar sexo
-                context_start = max(0, match.start() - 50)
-                context_end = min(len(text), match.end() + 50)
-                context = text[context_start:context_end].lower()
-
-                sex = Sex.FEMENINO if "femen" in context or "mujer" in context else Sex.MASCULINO
-
-                # Evitar duplicados
-                existing = any(e.discipline == discipline and e.sex == sex for e in events)
-                if not existing:
-                    events.append(
-                        Event(
-                            discipline=discipline,
-                            event_type=event_type,
-                            sex=sex,
-                        )
-                    )
-
-        return events
-
-    def _extract_events_from_schedule_lines(self, lines: list[str]) -> list[Event]:
-        """
-        Extrae pruebas a partir de líneas de texto (horarios tipo FAM).
-        """
-        events: list[Event] = []
-        last_time: time | None = None
-
-        for line in lines:
-            line_clean = re.sub(r"\s+", " ", line).strip()
-
-            # 1. Detectar hora en la línea
-            parsed_time = self._parse_time(line_clean)
-            if parsed_time:
-                last_time = parsed_time
-
-            if not last_time:
-                continue
-
-            # 2. Detectar disciplina
-            discipline = self._find_discipline_in_row([line_clean])
-            if not discipline:
-                continue
-
-            # Limpiar disciplina de horas
-            discipline = re.sub(r"\d{1,2}[:\.]\d{2}", "", discipline).strip()
-            discipline = normalize_discipline(discipline)
-
-            # 3. Detectar tipo
-            event_type = detect_event_type(discipline)
-
-            # 4. Detectar sexo
-            sex = self._extract_sex_from_row([line_clean], None)
-
-            # 5. Evitar duplicados claros
-            if any(
-                e.discipline == discipline and e.sex == sex and e.scheduled_time == last_time
-                for e in events
-            ):
-                continue
-
-            events.append(
-                Event(
-                    discipline=discipline,
-                    event_type=event_type,
-                    sex=sex,
-                    scheduled_time=last_time,
-                )
-            )
-
-        return events
