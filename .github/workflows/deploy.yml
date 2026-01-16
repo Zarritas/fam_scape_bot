@@ -6,8 +6,6 @@ on:
   workflow_dispatch:
 
 env:
-  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-  DOCKERHUB_REPOSITORY: atletismo-bot
   VPS_HOST: ${{ secrets.VPS_HOST }}
   VPS_USER: ${{ secrets.VPS_USER }}
   VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
@@ -20,34 +18,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/Dockerfile
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Deploy to IONOS VPS
         uses: appleboy/ssh-action@v1.0.3
@@ -62,8 +32,35 @@ jobs:
             # Cambiar al directorio del proyecto
             cd /opt/atletismo-bot
 
-            # Descargar archivos de configuración desde el repo
-            curl -s https://raw.githubusercontent.com/${{ github.repository }}/production/docker/docker-compose.prod.yml -o docker-compose.prod.yml
+            # Respaldar base de datos si existe
+            if [ -f data/bot.db ]; then
+              cp data/bot.db data/bot.db.backup.$(date +%Y%m%d_%H%M%S)
+            fi
+
+            # Limpiar directorio (excepto data/)
+            find . -maxdepth 1 ! -name 'data' ! -name '.' -type f -delete
+            find . -maxdepth 1 ! -name 'data' ! -name '.' -type d -exec rm -rf {} + 2>/dev/null || true
+
+            # Clonar el código desde GitHub
+            git clone --depth 1 --branch production https://github.com/${{ github.repository }} . || git pull origin production
+
+            # Instalar Python si no está disponible
+            if ! command -v python3.11 &> /dev/null; then
+              apt update
+              apt install -y software-properties-common
+              add-apt-repository -y ppa:deadsnakes/ppa
+              apt install -y python3.11 python3.11-venv python3.11-pip
+            fi
+
+            # Crear entorno virtual si no existe
+            if [ ! -d "venv" ]; then
+              python3.11 -m venv venv
+            fi
+
+            # Activar entorno virtual e instalar dependencias
+            source venv/bin/activate
+            pip install --upgrade pip
+            pip install -r requirements.txt
 
             # Crear archivo .env con las variables de entorno
             cat > .env << EOF
@@ -77,31 +74,53 @@ jobs:
             # Logging
             LOG_LEVEL=INFO
             LOG_FORMAT=text
-
-            # Docker Hub (para docker-compose.prod.yml)
-            DOCKERHUB_USERNAME=${{ env.DOCKERHUB_USERNAME }}
             EOF
 
             # Asegurar permisos correctos para .env
             chmod 600 .env
 
-            # Login a Docker Hub
-            echo ${{ secrets.DOCKERHUB_TOKEN }} | docker login -u ${{ env.DOCKERHUB_USERNAME }} --password-stdin
+            # Crear directorio data si no existe
+            mkdir -p data
 
-            # Descargar la nueva imagen
-            docker pull ${{ env.DOCKERHUB_USERNAME }}/${{ env.DOCKERHUB_REPOSITORY }}:latest
+            # Inicializar base de datos si no existe
+            if [ ! -f data/bot.db ]; then
+              source venv/bin/activate
+              python -m src.database.engine
+            fi
 
-            # Detener contenedores existentes
-            docker compose -f docker-compose.prod.yml down || true
+            # Crear archivo de servicio systemd si no existe
+            if [ ! -f /etc/systemd/system/atletismo-bot.service ]; then
+              cat > /etc/systemd/system/atletismo-bot.service << EOF
+            [Unit]
+            Description=Bot de Atletismo Madrid
+            After=network.target
 
-            # Limpiar imágenes no utilizadas
-            docker image prune -f
+            [Service]
+            Type=simple
+            User=root
+            WorkingDirectory=/opt/atletismo-bot
+            ExecStart=/opt/atletismo-bot/venv/bin/python -m src.main
+            Restart=always
+            RestartSec=5
+            Environment=PYTHONPATH=/opt/atletismo-bot
 
-            # Iniciar servicios
-            docker compose -f docker-compose.prod.yml up -d
+            [Install]
+            WantedBy=multi-user.target
+            EOF
 
-            # Verificar que el contenedor esté corriendo
-            docker ps
+              # Recargar systemd y habilitar el servicio
+              systemctl daemon-reload
+              systemctl enable atletismo-bot
+            fi
 
-            # Mostrar logs recientes para verificar funcionamiento
-            docker logs --tail 20 atletismo-bot
+            # Detener el servicio actual si está corriendo
+            systemctl stop atletismo-bot || true
+
+            # Iniciar el servicio
+            systemctl start atletismo-bot
+
+            # Verificar que el servicio esté corriendo
+            systemctl status atletismo-bot --no-pager
+
+            # Mostrar logs recientes
+            journalctl -u atletismo-bot -n 20 --no-pager

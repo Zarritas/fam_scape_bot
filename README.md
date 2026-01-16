@@ -40,11 +40,8 @@ cp .env.example .env
 ### Ejecutar
 
 ```bash
-# Desarrollo
+# Desarrollo local
 python -m src.main
-
-# Con Docker
-docker-compose up -d
 ```
 
 ## 📋 Comandos del Bot
@@ -89,31 +86,20 @@ pytest --cov=src --cov-report=html
    # Conectarse al VPS
    ssh root@tu-servidor-ionos
 
-   # Ejecutar script de configuración automática
-   curl -fsSL https://raw.githubusercontent.com/tu-usuario/bot-telegram/production/scripts/setup-vps.sh | bash
+   # Actualizar sistema
+   apt update && apt upgrade -y
 
-   # O manualmente:
-   # Instalar Docker y Docker Compose
-   curl -fsSL https://get.docker.com -o get-docker.sh
-   sh get-docker.sh
-   apt-get install -y docker-compose-plugin
+   # Instalar Python 3.11 y git
+   apt install -y software-properties-common git
+   add-apt-repository -y ppa:deadsnakes/ppa
+   apt install -y python3.11 python3.11-venv python3.11-pip
 
-    # Crear directorio del proyecto
-    mkdir -p /opt/atletismo-bot
-    cd /opt/atletismo-bot
-    ```
+   # Crear directorio del proyecto
+   mkdir -p /opt/atletismo-bot
+   cd /opt/atletismo-bot
+   ```
 
-    **Nota:** El archivo `.env` se crea automáticamente durante el despliegue desde las secrets de GitHub. No necesitas crearlo manualmente.
-
-2. **Configurar variables de entorno:**
-   Editar `.env` en el servidor con tus credenciales reales.
-
-3. **Configurar Docker Hub:**
-   - Crea una cuenta en [Docker Hub](https://hub.docker.com/)
-   - Ve a Account Settings → Security → New Access Token
-   - Crea un token con permisos de read/write
-
-4. **Configurar SSH Key:**
+2. **Configurar SSH Key:**
    ```bash
    # En tu máquina local, generar clave SSH
    ssh-keygen -t rsa -b 4096 -C "tu-email@ejemplo.com"
@@ -126,10 +112,8 @@ pytest --cov=src --cov-report=html
    # Pegar en /root/.ssh/authorized_keys en el servidor
    ```
 
-5. **Secrets de GitHub (para CI/CD):**
+3. **Secrets de GitHub (para CI/CD):**
    En tu repositorio de GitHub, configura estos secrets:
-   - `DOCKERHUB_USERNAME`: Tu usuario de Docker Hub
-   - `DOCKERHUB_TOKEN`: Token de acceso de Docker Hub
    - `TELEGRAM_BOT_TOKEN`: Token de tu bot de Telegram
    - `ADMIN_USER_ID`: Tu ID de Telegram como administrador
    - `VPS_HOST`: IP o dominio de tu servidor IONOS
@@ -139,19 +123,31 @@ pytest --cov=src --cov-report=html
 ### Despliegue Automático
 
 Los pushes a la rama `production` activarán automáticamente el despliegue:
-1. Construcción de imagen Docker
-2. Push a Docker Hub
-3. Despliegue en el VPS via SSH
+1. Clonación del código desde GitHub
+2. Instalación de dependencias Python
+3. Configuración del archivo `.env`
+4. Configuración del servicio systemd
+5. Reinicio del bot
 
-## 🐳 Docker
+### Producción
+El despliegue se maneja automáticamente via GitHub Actions ejecutando directamente en el servidor.
 
-### Desarrollo Local
+### Monitoreo
 ```bash
-# Construir imagen
-docker build -f docker/Dockerfile -t atletismo-bot .
+# Ver estado del servicio
+systemctl status atletismo-bot
 
-# Ejecutar con docker-compose
-docker-compose -f docker/docker-compose.yml up -d
+# Ver logs del servicio
+journalctl -u atletismo-bot -f
+
+# Reiniciar el servicio
+systemctl restart atletismo-bot
+
+# Ver logs recientes
+journalctl -u atletismo-bot -n 50 --no-pager
+
+# Ver uso de recursos
+top -p $(pgrep -f "python -m src.main")
 ```
 
 ### Producción
