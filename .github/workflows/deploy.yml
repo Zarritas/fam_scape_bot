@@ -31,8 +31,13 @@ jobs:
           script: |
             # Verificar conectividad SSH
             echo "Verificando conexión SSH..."
-            whoami
-            hostname
+            echo "Usuario: $(whoami)"
+            echo "Hostname: $(hostname)"
+            echo "Directorio actual: $(pwd)"
+
+            # Verificar que la clave SSH existe
+            echo "Contenido de clave SSH (primeras líneas):"
+            echo "$VPS_SSH_KEY" | head -2
 
             # Crear directorio si no existe
             mkdir -p /opt/atletismo-bot
