@@ -98,10 +98,12 @@ pytest --cov=src --cov-report=html
    sh get-docker.sh
    apt-get install -y docker-compose-plugin
 
-   # Crear directorio del proyecto
-   mkdir -p /opt/atletismo-bot
-   cd /opt/atletismo-bot
-   ```
+    # Crear directorio del proyecto
+    mkdir -p /opt/atletismo-bot
+    cd /opt/atletismo-bot
+    ```
+
+    **Nota:** El archivo `.env` se crea automáticamente durante el despliegue desde las secrets de GitHub. No necesitas crearlo manualmente.
 
 2. **Configurar variables de entorno:**
    Editar `.env` en el servidor con tus credenciales reales.
@@ -128,20 +130,11 @@ pytest --cov=src --cov-report=html
    En tu repositorio de GitHub, configura estos secrets:
    - `DOCKERHUB_USERNAME`: Tu usuario de Docker Hub
    - `DOCKERHUB_TOKEN`: Token de acceso de Docker Hub
+   - `TELEGRAM_BOT_TOKEN`: Token de tu bot de Telegram
+   - `ADMIN_USER_ID`: Tu ID de Telegram como administrador
    - `VPS_HOST`: IP o dominio de tu servidor IONOS
    - `VPS_USER`: Usuario SSH (normalmente `root`)
    - `VPS_SSH_KEY`: Contenido de tu clave privada SSH (`cat ~/.ssh/id_rsa`)
-
-6. **Variables de entorno en el servidor:**
-   ```bash
-   # En /opt/atletismo-bot/.env
-   DOCKERHUB_USERNAME=tu_usuario_dockerhub
-   TELEGRAM_BOT_TOKEN=tu_token_bot_telegram
-   ADMIN_USER_ID=tu_id_admin
-   DATABASE_URL=sqlite+aiosqlite:///./data/bot.db
-   LOG_LEVEL=INFO
-   LOG_FORMAT=text
-   ```
 
 ### Despliegue Automático
 

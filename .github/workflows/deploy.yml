@@ -65,6 +65,26 @@ jobs:
             # Descargar archivos de configuración desde el repo
             curl -s https://raw.githubusercontent.com/${{ github.repository }}/production/docker/docker-compose.prod.yml -o docker-compose.prod.yml
 
+            # Crear archivo .env con las variables de entorno
+            cat > .env << EOF
+            # Configuración del bot (desde GitHub Secrets)
+            TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}
+            ADMIN_USER_ID=${{ secrets.ADMIN_USER_ID }}
+
+            # Base de datos
+            DATABASE_URL=sqlite+aiosqlite:///./data/bot.db
+
+            # Logging
+            LOG_LEVEL=INFO
+            LOG_FORMAT=text
+
+            # Docker Hub (para docker-compose.prod.yml)
+            DOCKERHUB_USERNAME=${{ env.DOCKERHUB_USERNAME }}
+            EOF
+
+            # Asegurar permisos correctos para .env
+            chmod 600 .env
+
             # Login a Docker Hub
             echo ${{ secrets.DOCKERHUB_TOKEN }} | docker login -u ${{ env.DOCKERHUB_USERNAME }} --password-stdin
 
