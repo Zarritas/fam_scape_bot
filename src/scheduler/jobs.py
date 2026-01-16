@@ -6,9 +6,9 @@ Jobs:
 - notification_job: Ejecuta a las 10:00, envía notificaciones a usuarios
 """
 
-from datetime import date
+from datetime import date, timedelta
 
-from src.database.engine import get_session_factory
+from src.database.engine import get_session_factory, get_session
 from src.database.repositories import (
     CompetitionRepository,
     ErrorRepository,
@@ -49,7 +49,7 @@ async def scraping_job() -> dict:
         "errors": 0,
     }
 
-    from src.database.engine import get_session
+
 
     scraper = WebScraper()
     parser = PDFParser()
@@ -240,9 +240,118 @@ async def notification_job(bot=None) -> dict:
         logger.warning("Bot no configurado, saltando notificaciones")
         return stats
 
-    # Notificaciones desactivadas por cambio de funcionalidad
-    logger.info("Notificaciones automáticas desactivadas")
-    return stats
+    # Obtener competiciones del día siguiente (para notificar con anticipación)
+    tomorrow = today + timedelta(days=1)
+
+    try:
+        async with get_session() as session:
+            comp_repo = CompetitionRepository(session)
+            sub_repo = SubscriptionRepository(session)
+            notif_repo = NotificationRepository(session)
+            error_repo = ErrorRepository(session)
+
+            # Obtener competiciones de mañana
+            competitions = await comp_repo.get_upcoming(from_date=tomorrow)
+            competitions = [c for c in competitions if c.competition_date == tomorrow]
+
+            logger.info(f"Encontradas {len(competitions)} competiciones para mañana")
+
+            # Agrupar notificaciones por usuario para enviar mensajes consolidados
+            user_notifications: dict[int, list[dict]] = {}
+
+            for competition in competitions:
+                logger.debug(f"Procesando competición: {competition.name}")
+
+                for event in competition.events:
+                    # Obtener usuarios suscritos a esta disciplina+sexo
+                    user_ids = await sub_repo.get_users_for_event(
+                        discipline=event.discipline,
+                        sex=event.sex,
+                    )
+
+                    logger.debug(f"Evento {event.discipline} {event.sex}: {len(user_ids)} usuarios suscritos")
+
+                    for user_id in user_ids:
+                        # Verificar si ya fue notificado de este evento específico
+                        if await notif_repo.was_notified(user_id, event.id):
+                            stats["notifications_skipped"] += 1
+                            continue
+
+                        # Agregar a las notificaciones del usuario
+                        if user_id not in user_notifications:
+                            user_notifications[user_id] = []
+
+                        user_notifications[user_id].append(
+                            {
+                                "competition": competition,
+                                "event": event,
+                            }
+                        )
+
+            # Enviar notificaciones agrupadas por usuario
+            from src.notifications.service import send_notification
+
+            for user_id, notifications in user_notifications.items():
+                try:
+                    logger.debug(f"Enviando {len(notifications)} notificaciones a usuario {user_id}")
+
+                    # Enviar notificación consolidada
+                    success = await send_notification(
+                        bot=bot,
+                        user_id=user_id,
+                        notifications=notifications,
+                    )
+
+                    if success:
+                        stats["users_notified"] += 1
+
+                        # Registrar cada notificación enviada en los logs
+                        for notif in notifications:
+                            message_hash = calculate_message_hash(
+                                f"{user_id}_{notif['event'].id}_{competition.competition_date.isoformat()}"
+                            )
+
+                            await notif_repo.log_notification(
+                                user_id=user_id,
+                                event_id=notif["event"].id,
+                                message_hash=message_hash,
+                            )
+
+                            stats["notifications_sent"] += 1
+
+                        logger.info(f"Notificación enviada exitosamente a usuario {user_id}")
+
+                    else:
+                        logger.warning(f"Falló envío de notificación a usuario {user_id}")
+                        stats["errors"] += 1
+
+                except Exception as e:
+                    stats["errors"] += 1
+                    logger.error(f"Error enviando notificación a usuario {user_id}: {e}")
+
+                    await error_repo.log_error(
+                        component="notifications",
+                        error=e,
+                        message=f"Error enviando notificación a usuario {user_id}",
+                    )
+
+            await session.commit()
+
+    except Exception as e:
+        stats["errors"] += 1
+        logger.error(f"Error fatal en notification job: {e}")
+
+        try:
+            async with get_session() as session:
+                error_repo = ErrorRepository(session)
+                await error_repo.log_error(
+                    component="notifications",
+                    error=e,
+                    message="Error fatal en notification job",
+                )
+                await session.commit()
+        except Exception:
+            pass
 
     session_factory = get_session_factory()
     today = date.today()
