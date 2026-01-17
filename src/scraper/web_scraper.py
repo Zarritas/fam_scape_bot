@@ -143,7 +143,7 @@ class WebScraper:
         competitions: list[RawCompetition] = []
 
         # Buscar tabla del calendario (la estructura real del sitio FAM)
-        calendar_table = soup.find("table", class_="table table-striped table-hover")
+        calendar_table = soup.find("table", class_="calendario")
 
         if not calendar_table:
             logger.warning("No se encontró la tabla del calendario")
@@ -156,7 +156,8 @@ class WebScraper:
         rows = all_rows
         if all_rows:
             first_row = all_rows[0]
-            cells = first_row.find_all("td")
+            # Check both td and th elements for header detection
+            cells = first_row.find_all("td") or first_row.find_all("th")
             if cells:
                 first_cell_text = cells[0].get_text(strip=True).lower()
                 # Si la primera celda contiene palabras de header, saltar la primera fila
@@ -176,30 +177,30 @@ class WebScraper:
         """
         Parsea una fila de la tabla real del calendario FAM.
 
-        Estructura: Fecha | Competición | Lugar | Documentos | Inscripciones
+        Estructura real: Fecha | Límite | Competición | Lugar | Documentos | Inscritos | Resultados | Tipo
         Maneja fechas múltiples como "17y18.01 (S-D)"
         """
         cells = row.find_all("td")
-        if len(cells) < 5:
+        if len(cells) < 6:  # Need at least Fecha, Límite, Competición, Lugar, Documentos, Inscritos
             return None
 
-        # Columna 0: Fecha (ej: "03/01/2026" o "17y18.01 (S-D)")
+        # Columna 0: Fecha (ej: "03.01 (S)" o "17y18.01 (S-D)")
         date_cell = cells[0]
         date_str = date_cell.get_text(strip=True)
 
         # Parsear fechas múltiples
         fechas_adicionales = self._extract_additional_dates(date_str)
 
-        # Columna 1: Competición (nombre)
-        name_cell = cells[1]
+        # Columna 2: Competición (nombre) - skip columna 1 (Límite)
+        name_cell = cells[2]
         name = name_cell.get_text(strip=True)
 
-        # Columna 2: Lugar
-        location_cell = cells[2]
+        # Columna 3: Lugar
+        location_cell = cells[3]
         location = location_cell.get_text(strip=True) or None
 
-        # Columna 3: Documentos (contiene el enlace al PDF)
-        docs_cell = cells[3]
+        # Columna 4: Documentos (contiene el enlace al PDF)
+        docs_cell = cells[4]
         pdf_url = None
         pdf_link = docs_cell.find("a")
         if pdf_link:
@@ -207,8 +208,8 @@ class WebScraper:
             if pdf_href:
                 pdf_url = urljoin(self.base_url, pdf_href)
 
-        # Columna 4: Inscripciones (contiene el enlace de inscripción)
-        enroll_cell = cells[4]
+        # Columna 5: Inscritos (contiene el enlace de inscripción)
+        enroll_cell = cells[5]
         enrollment_url = None
         enroll_link = enroll_cell.find("a")
         if enroll_link:

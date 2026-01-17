@@ -23,30 +23,47 @@ class TestFullWorkflowReal:
 <html>
 <head><title>Calendario FAM</title></head>
 <body>
-    <table class="table table-striped table-hover">
-        <tbody>
-            <tr>
-                <td>03/01/2026</td>
-                <td>Copa Madrid - Reunión Gallur</td>
-                <td>Gallur</td>
-                <td><a href="/pdfs/modificado_gallur_2026_01_03.pdf">PDF</a></td>
-                <td><a href="https://inscripciones.fam.es">Inscribirse</a></td>
-            </tr>
-            <tr>
-                <td>17/01/2026 - 18/01/2026</td>
-                <td>Copa Madrid Absoluta - Combinadas</td>
-                <td>Gallur</td>
-                <td><a href="/pdfs/modificado_combinadasabsoluto_gallur_2026_01_17y18.pdf">PDF</a></td>
-                <td><a href="https://inscripciones.fam.es">Inscribirse</a></td>
-            </tr>
-            <tr>
-                <td>24/01/2026</td>
-                <td>Campeonato de Madrid Sub23</td>
-                <td>Gallur</td>
-                <td><a href="/pdfs/sub23_gallur_2026_01_24.pdf">PDF</a></td>
-                <td><a href="https://inscripciones.fam.es">Inscribirse</a></td>
-            </tr>
-        </tbody>
+    <table class='calendario'>
+        <tr style='padding:2px;'>
+            <th width='120px'>Fecha prueba</th>
+            <th width='80px'>Límite inscripción</th>
+            <th>Competición</th>
+            <th width='200px'>Lugar</th>
+            <th></th>
+            <th></th>
+            <th></th>
+            <th width='60px'></th>
+        </tr>
+        <tr>
+            <td align='right'>03.01 (S)</td>
+            <td align='center'><b>28/12 (D)</b></td>
+            <td align='left'><a href='index.php?option=com_content&view=article&id=13335&Itemid=250'>Reunión FAM 13 Gallur</a></td>
+            <td align='left'>Gallur</td>
+            <td align='center'><a href='https://www.atletismomadrid.com/images/stories/ficheros/eventos/reglamentos/modificado_gallur_2026_01_03.pdf' target='_blank' title='Reglamento'>regl.</a></td>
+            <td><a href='https://www.atletismomadrid.com/images/stories/ficheros/eventos/inscritos/inscritos_2026.01.03_fam13.pdf' target='_blank' title='Inscritos'>insc.</a></td>
+            <td><a href='https://www.atletismomadrid.com/images/stories/ficheros/eventos/2026.01.03_REUNION_FAM_13_GALLUR.pdf' target='_blank' title='Resultados'>resul.</a></td>
+            <td align='center' title='Pista Cubierta'>PC</td>
+        </tr>
+        <tr>
+            <td align='right'>17y18.01 (S-D)</td>
+            <td align='center'><b>11/01 (D)</b></td>
+            <td align='left'><a href='index.php?option=com_content&view=article&id=13323&Itemid=250'>Campeonato de Madrid de Combinadas Absoluto, Sub 23 y Sub 20</a></td>
+            <td align='left'>Gallur</td>
+            <td align='center' style='background-color:#FFFF00;'><a href='https://www.atletismomadrid.com/images/stories/ficheros/eventos/reglamentos/modificado_combinadasabsoluto_gallur_2026_01_17y18.pdf' target='_blank' title='Reglamento'>regl.</a></td>
+            <td><a href='https://www.atletismomadrid.com/images/stories/ficheros/eventos/inscritos/inscritos_2026.01.17y18_combinadas_abs.pdf' target='_blank' title='Inscritos'>insc.</a></td>
+            <td></td>
+            <td align='center' title='Pista Cubierta'>PC</td>
+        </tr>
+        <tr>
+            <td align='right'>24.01 (S)</td>
+            <td align='center'><b>19/01 (L)</b></td>
+            <td align='left'><a href='index.php?option=com_content&view=article&id=13328&Itemid=250'>Campeonato de Madrid sub 23</a></td>
+            <td align='left'>Gallur</td>
+            <td align='center'><a href='https://www.atletismomadrid.com/images/stories/ficheros/eventos/reglamentos/sub23_gallur_2026_01_24.pdf' target='_blank' title='Reglamento'>regl.</a></td>
+            <td></td>
+            <td></td>
+            <td align='center' title='Pista Cubierta'>PC</td>
+        </tr>
     </table>
 </body>
 </html>"""
