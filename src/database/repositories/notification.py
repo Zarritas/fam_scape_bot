@@ -5,7 +5,7 @@ Repositorio para logs de notificaciones.
 from collections.abc import Sequence
 from datetime import datetime, timedelta
 
-from sqlalchemy import and_, delete, func, select
+from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.database.models import NotificationLog

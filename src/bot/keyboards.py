@@ -211,11 +211,9 @@ def get_smart_subscription_keyboard(discipline: str, sex: str, is_subscribed: bo
     if is_subscribed:
         text = f"❌ Desuscribirse de {discipline} {sex_label}"
         callback = f"smart_sub:{discipline}:{sex}:unsub"
-        emoji = "❌"
     else:
         text = f"⭐ Suscribirse a {discipline} {sex_label}"
         callback = f"smart_sub:{discipline}:{sex}:sub"
-        emoji = "⭐"
 
     keyboard = [
         [InlineKeyboardButton(text, callback_data=callback)],
