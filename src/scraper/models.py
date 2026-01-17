@@ -40,7 +40,9 @@ class RawCompetition:
     enrollment_url: str | None = None
     location: str | None = None
     competition_type: str | None = None  # Tipo: PC, AL, C, M, R, etc.
-    fechas_adicionales: list[str] = field(default_factory=list)  # Fechas adicionales en formato "DD/MM/YYYY"
+    fechas_adicionales: list[str] = field(
+        default_factory=list
+    )  # Fechas adicionales en formato "DD/MM/YYYY"
 
     def __post_init__(self) -> None:
         # Asegurar URL absoluta

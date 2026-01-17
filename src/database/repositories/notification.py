@@ -100,9 +100,7 @@ class NotificationRepository(BaseRepository[NotificationLog]):
         count_to_delete = count_result.scalar_one()
 
         # Eliminar registros
-        await self.session.execute(
-            delete(NotificationLog).where(NotificationLog.sent_at < cutoff)
-        )
+        await self.session.execute(delete(NotificationLog).where(NotificationLog.sent_at < cutoff))
         await self.session.flush()
 
         return count_to_delete

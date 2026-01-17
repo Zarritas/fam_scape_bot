@@ -49,8 +49,6 @@ async def scraping_job() -> dict:
         "errors": 0,
     }
 
-
-
     scraper = WebScraper()
     parser = PDFParser()
 
@@ -137,12 +135,15 @@ async def scraping_job() -> dict:
 
                             # Preparar fechas adicionales
                             fechas_adicionales_parsed = None
-                            if hasattr(raw_comp, 'fechas_adicionales') and raw_comp.fechas_adicionales:
+                            if (
+                                hasattr(raw_comp, "fechas_adicionales")
+                                and raw_comp.fechas_adicionales
+                            ):
                                 try:
                                     fechas_adicionales_parsed = []
                                     for fecha_str in raw_comp.fechas_adicionales:
                                         # Convertir "DD/MM/YYYY" a date object
-                                        parts = fecha_str.split('/')
+                                        parts = fecha_str.split("/")
                                         if len(parts) == 3:
                                             day, month, year = parts
                                             fecha_obj = date(int(year), int(month), int(day))
@@ -288,7 +289,9 @@ async def notification_job(bot=None) -> dict:
                         sex=event.sex,
                     )
 
-                    logger.debug(f"Evento {event.discipline} {event.sex}: {len(user_ids)} usuarios suscritos")
+                    logger.debug(
+                        f"Evento {event.discipline} {event.sex}: {len(user_ids)} usuarios suscritos"
+                    )
 
                     for user_id in user_ids:
                         # Verificar si ya fue notificado de este evento específico
@@ -312,7 +315,9 @@ async def notification_job(bot=None) -> dict:
 
             for user_id, notifications in user_notifications.items():
                 try:
-                    logger.debug(f"Enviando {len(notifications)} notificaciones a usuario {user_id}")
+                    logger.debug(
+                        f"Enviando {len(notifications)} notificaciones a usuario {user_id}"
+                    )
 
                     # Enviar notificación consolidada
                     success = await send_notification(

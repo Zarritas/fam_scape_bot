@@ -102,9 +102,7 @@ async def subscribe_command(
 
     except Exception as e:
         logger.error(f"Error en suscripción: {e}")
-        await update.message.reply_text(
-            "❌ Error al procesar la suscripción. Inténtalo de nuevo."
-        )
+        await update.message.reply_text("❌ Error al procesar la suscripción. Inténtalo de nuevo.")
 
 
 async def subscriptions_command(
@@ -154,7 +152,9 @@ async def subscriptions_command(
             # Crear mensaje con lista de suscripciones
             subs_text = "<b>📋 Tus suscripciones activas:</b>\n\n"
             for i, sub in enumerate(subscriptions, 1):
-                sex_label = "Masculino" if sub.sex == "M" else ("Femenino" if sub.sex == "F" else "Ambos")
+                sex_label = (
+                    "Masculino" if sub.sex == "M" else ("Femenino" if sub.sex == "F" else "Ambos")
+                )
                 subs_text += f"{i}. {sub.discipline} {sex_label}\n"
 
             subs_text += "\n<i>Click en ❌ para desuscribirte</i>"
@@ -236,9 +236,7 @@ async def unsubscribe_callback(
 
     except Exception as e:
         logger.error(f"Error en desuscripción: {e}")
-        await query.edit_message_text(
-            "❌ Error al procesar la desuscripción. Inténtalo de nuevo."
-        )
+        await query.edit_message_text("❌ Error al procesar la desuscripción. Inténtalo de nuevo.")
 
 
 async def smart_subscribe_callback(
@@ -331,6 +329,4 @@ async def smart_subscribe_callback(
 
     except Exception as e:
         logger.error(f"Error en suscripción inteligente: {e}")
-        await query.edit_message_text(
-            "❌ Error al procesar la solicitud. Inténtalo de nuevo."
-        )
+        await query.edit_message_text("❌ Error al procesar la solicitud. Inténtalo de nuevo.")

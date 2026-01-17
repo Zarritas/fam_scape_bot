@@ -128,7 +128,9 @@ class WebScraper:
             logger.error(f"Error parseando HTML: {e}")
             raise WebScraperError(f"Error parseando calendario: {e}") from e
 
-    def parse_calendar_html(self, html: str, default_month: int = 1, default_year: int = 2026) -> list[RawCompetition]:
+    def parse_calendar_html(
+        self, html: str, default_month: int = 1, default_year: int = 2026
+    ) -> list[RawCompetition]:
         """
         Parsea el HTML del calendario FAM y extrae las competiciones.
 
@@ -375,6 +377,7 @@ class WebScraper:
                     # Necesitamos el año del contexto. Por ahora asumimos el año actual
                     # En una implementación completa, esto vendría del parámetro year
                     from datetime import date
+
                     current_year = date.today().year
                     additional_dates.append(f"{int(day2):02d}/{int(month_num):02d}/{current_year}")
 
@@ -386,10 +389,13 @@ class WebScraper:
 
                 if len(days) > 1:
                     from datetime import date
+
                     current_year = date.today().year
                     # El primer día es la fecha principal, agregar los demás
                     for day in days[1:]:
-                        additional_dates.append(f"{int(day):02d}/{int(month_num):02d}/{current_year}")
+                        additional_dates.append(
+                            f"{int(day):02d}/{int(month_num):02d}/{current_year}"
+                        )
 
         except Exception as e:
             logger.warning(f"Error parseando fechas adicionales de '{date_str}': {e}")
@@ -510,7 +516,9 @@ class WebScraper:
             response.raise_for_status()
 
             # Parsear todas las competiciones
-            all_competitions = self.parse_calendar_html(response.text, 1, 2026)  # Valores por defecto
+            all_competitions = self.parse_calendar_html(
+                response.text, 1, 2026
+            )  # Valores por defecto
 
             # Filtrar por los meses solicitados
             filtered_competitions = []
@@ -535,7 +543,9 @@ class WebScraper:
                     # Si hay error en el parseo, incluirla
                     filtered_competitions.append(comp)
 
-            logger.info(f"Filtradas {len(filtered_competitions)} competiciones para los meses solicitados")
+            logger.info(
+                f"Filtradas {len(filtered_competitions)} competiciones para los meses solicitados"
+            )
             return filtered_competitions
 
         except Exception as e:

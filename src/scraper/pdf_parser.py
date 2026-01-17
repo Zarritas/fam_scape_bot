@@ -224,7 +224,9 @@ class PDFParser:
 
                 if any(keyword in sample_text for keyword in ["SERIE", "CARRERA", "METROS"]):
                     event_type = EventType.CARRERA
-                elif any(keyword in sample_text for keyword in ["ALTURA", "PESO", "DISCO", "PÉRTIGA"]):
+                elif any(
+                    keyword in sample_text for keyword in ["ALTURA", "PESO", "DISCO", "PÉRTIGA"]
+                ):
                     event_type = EventType.CONCURSO
                 else:
                     continue
@@ -313,4 +315,3 @@ class PDFParser:
             scheduled_time=scheduled_time,
             category=category or "",
         )
-

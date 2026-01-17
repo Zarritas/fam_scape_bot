@@ -80,6 +80,7 @@ class Competition(Base):
 
         try:
             from datetime import datetime
+
             dates_str = json.loads(self.fechas_adicionales)
             dates = []
             for date_str in dates_str:

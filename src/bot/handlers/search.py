@@ -36,7 +36,9 @@ SELECT_METHOD, SELECT_TYPE, SELECT_DISCIPLINE, SELECT_SEX, SELECT_DATE = range(5
 _user_event_type: dict[int, str] = {}
 
 
-def combine_keyboards(nav_keyboard: InlineKeyboardMarkup, sub_keyboard: InlineKeyboardMarkup) -> InlineKeyboardMarkup:
+def combine_keyboards(
+    nav_keyboard: InlineKeyboardMarkup, sub_keyboard: InlineKeyboardMarkup
+) -> InlineKeyboardMarkup:
     """
     Combina teclado de navegación con teclado de suscripción.
 

@@ -195,7 +195,9 @@ def get_admin_confirm_scrape_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
-def get_smart_subscription_keyboard(discipline: str, sex: str, is_subscribed: bool) -> InlineKeyboardMarkup:
+def get_smart_subscription_keyboard(
+    discipline: str, sex: str, is_subscribed: bool
+) -> InlineKeyboardMarkup:
     """
     Teclado inteligente para suscribirse/desuscribirse.
 
@@ -240,9 +242,7 @@ def get_subscriptions_management_keyboard(subscriptions: list) -> InlineKeyboard
         keyboard.append([InlineKeyboardButton(text, callback_data=callback)])
 
     # Botón para cerrar
-    keyboard.append([
-        InlineKeyboardButton("🔙 Cerrar", callback_data="cancel")
-    ])
+    keyboard.append([InlineKeyboardButton("🔙 Cerrar", callback_data="cancel")])
 
     return InlineKeyboardMarkup(keyboard)
 
