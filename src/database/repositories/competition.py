@@ -82,11 +82,12 @@ class CompetitionRepository(BaseRepository[Competition]):
         fechas_adicionales: list[date] | None = None,
     ) -> tuple[Competition, bool]:
         """
-        Inserta o actualiza una competición basándose en el hash del PDF.
+        Inserta o actualiza una competición basándose en el hash del PDF o nombre/fecha.
 
         Si el PDF ya existe con el mismo hash, no hace nada.
         Si el PDF existe pero el hash cambió, actualiza.
-        Si el PDF no existe, lo crea.
+        Si no hay PDF, busca por nombre y fecha para evitar duplicados.
+        Si no existe, lo crea.
 
         Args:
             pdf_url: URL del PDF
@@ -103,7 +104,18 @@ class CompetitionRepository(BaseRepository[Competition]):
             Tupla (Competition, is_new_or_updated)
             - is_new_or_updated es True si se creó o actualizó
         """
-        existing = await self.get_by_pdf_url_and_name(pdf_url, name) if pdf_url else None
+        # Buscar competición existente
+        if pdf_url:
+            # Si hay PDF, buscar por URL y nombre
+            existing = await self.get_by_pdf_url_and_name(pdf_url, name)
+        else:
+            # Si no hay PDF, buscar por nombre y fecha para evitar duplicados
+            result = await self.session.execute(
+                select(Competition)
+                .where(Competition.name == name, Competition.competition_date == competition_date)
+                .options(selectinload(Competition.events))
+            )
+            existing = result.scalar_one_or_none()
 
         if existing:
             # Ya existe - verificar si el hash cambió

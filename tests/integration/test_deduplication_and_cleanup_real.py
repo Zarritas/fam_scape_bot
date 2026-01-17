@@ -253,3 +253,40 @@ class TestCleanupReal:
         # La competición futura debería seguir existiendo
         future_competitions = await repo.get_upcoming(from_date=today)
         assert len(future_competitions) >= 1
+
+    async def test_no_duplication_without_pdf(self, repo):
+        """Test que no duplica competiciones sin PDF cuando se ejecuta múltiples veces."""
+        competition_name = "Campeonato Madrid Absoluto - Sin PDF"
+        competition_date = date(2026, 2, 15)
+        location = "Madrid"
+
+        # Primera inserción - debería crearse
+        comp1, created1 = await repo.upsert_with_hash(
+            pdf_url=None,  # Sin PDF
+            pdf_hash=None,
+            name=competition_name,
+            competition_date=competition_date,
+            location=location,
+            competition_type="AL",
+        )
+        assert created1 is True
+        assert comp1.name == competition_name
+        assert comp1.competition_date == competition_date
+
+        # Segunda inserción - debería encontrar la existente y no crear duplicado
+        comp2, created2 = await repo.upsert_with_hash(
+            pdf_url=None,  # Sin PDF
+            pdf_hash=None,
+            name=competition_name,
+            competition_date=competition_date,
+            location=location,
+            competition_type="AL",
+        )
+        assert created2 is False  # No debería crearse
+        assert comp2.id == comp1.id  # Debería ser la misma competición
+        assert comp2.name == competition_name
+
+        # Verificar que solo hay una competición en la BD
+        all_competitions = await repo.get_upcoming()
+        competitions_with_name = [c for c in all_competitions if c.name == competition_name]
+        assert len(competitions_with_name) == 1
