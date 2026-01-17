@@ -65,15 +65,17 @@ async def subscribe_command(
             user_repo = UserRepository(session)
             user = await user_repo.get_by_telegram_id(user_id)
             if not user:
-                await query.edit_message_text("❌ Usuario no encontrado")
+                await update.message.reply_text("❌ Usuario no encontrado. Usa /start primero.")
                 return
 
             user_id_db = user.id
+
+            # Intentar suscribir
             sub_repo = SubscriptionRepository(session)
-            success = await sub_repo.unsubscribe(
+            subscription, created = await sub_repo.subscribe(
                 user_id=user_id_db,
                 discipline=discipline,
-                sex=sex,
+                sex=sex_input,
             )
 
             if created:
@@ -131,7 +133,7 @@ async def subscriptions_command(
 
             # Obtener suscripciones
             sub_repo = SubscriptionRepository(session)
-            subscriptions = list(await sub_repo.get_by_user(user_id_db))
+            subscriptions = list(await sub_repo.get_by_user(user.id))
 
             if not subscriptions:
                 await update.message.reply_text(
@@ -206,6 +208,8 @@ async def unsubscribe_callback(
                 await query.edit_message_text("❌ Usuario no encontrado")
                 return
 
+            user_id_db = user.id
+
             # Desuscribir
             sub_repo = SubscriptionRepository(session)
             success = await sub_repo.unsubscribe(
@@ -275,6 +279,7 @@ async def smart_subscribe_callback(
                 await query.edit_message_text("❌ Usuario no encontrado")
                 return
 
+            user_id_db = user.id
             sub_repo = SubscriptionRepository(session)
             sex_label = "Masculino" if sex == "M" else ("Femenino" if sex == "F" else "Ambos")
 
