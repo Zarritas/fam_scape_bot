@@ -23,6 +23,27 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
+def validate_competition_data(raw_comp: "RawCompetition") -> dict:
+    """
+    Valida y sanitiza datos de competición antes de procesar.
+
+    Args:
+        raw_comp: Datos crudos de la competición
+
+    Returns:
+        Dict con datos validados y sanitizados
+    """
+    return {
+        'name': str(raw_comp.name or "Competición sin nombre")[:255],
+        'date_str': str(raw_comp.date_str or "")[:100],
+        'location': str(raw_comp.location or "Madrid")[:255],
+        'pdf_url': raw_comp.pdf_url,
+        'enrollment_url': raw_comp.enrollment_url,
+        'competition_type': raw_comp.competition_type,
+        'fechas_adicionales': raw_comp.fechas_adicionales or [],
+    }
+
+
 async def scraping_job() -> dict:
     """
     Job de scraping diario.
@@ -102,10 +123,31 @@ async def scraping_job() -> dict:
                                 # pero el repo ya recibe la fecha como date si la tenemos
                                 # Intentamos extraer una fecha date de raw_comp.date_str simplificada
                                 try:
-                                    day, month_num = raw_comp.date_str.split("/")
-                                    comp_date = date(year, int(month_num), int(day))
-                                except:  # noqa: E722
-                                    comp_date = date(year, month, 1)  # Fallback al 1 del mes
+                                    # Manejar múltiples formatos de fecha de forma segura
+                                    date_str = raw_comp.date_str.strip() if raw_comp.date_str else ""
+
+                                    if "/" in date_str:
+                                        parts = date_str.split("/")
+                                        if len(parts) >= 2:
+                                            # Extraer solo números de day y month
+                                            day_part = ''.join(c for c in parts[0] if c.isdigit())
+                                            month_part = ''.join(c for c in parts[1] if c.isdigit())
+
+                                            if day_part and month_part:
+                                                day = int(day_part)
+                                                month_num = int(month_part)
+                                                comp_date = date(year, month_num, day)
+                                            else:
+                                                comp_date = date(year, month, 1)
+                                        else:
+                                            comp_date = date(year, month, 1)
+                                    else:
+                                        # Fecha en formato no parseable (ej: texto largo)
+                                        comp_date = date(year, month, 1)
+                                except (ValueError, IndexError, AttributeError):
+                                    # Fallback seguro para cualquier error de parsing
+                                    comp_date = date(year, month, 1)
+                                    logger.warning(f"Fecha no parseable '{raw_comp.date_str}' para {raw_comp.name}, usando fallback")
 
                                 competition = Competition(
                                     name=raw_comp.name,
@@ -142,13 +184,26 @@ async def scraping_job() -> dict:
                                 try:
                                     fechas_adicionales_parsed = []
                                     for fecha_str in raw_comp.fechas_adicionales:
-                                        # Convertir "DD/MM/YYYY" a date object
+                                        if not fecha_str or not isinstance(fecha_str, str):
+                                            continue
+
+                                        # Convertir "DD/MM/YYYY" a date object de forma segura
                                         parts = fecha_str.split("/")
                                         if len(parts) == 3:
-                                            day, month, year = parts
-                                            fecha_obj = date(int(year), int(month), int(day))
-                                            fechas_adicionales_parsed.append(fecha_obj)
-                                except (ValueError, IndexError) as e:
+                                            try:
+                                                day_str, month_str, year_str = parts
+                                                # Extraer solo dígitos para evitar errores
+                                                day = int(''.join(c for c in day_str if c.isdigit()))
+                                                month_val = int(''.join(c for c in month_str if c.isdigit()))
+                                                year_val = int(''.join(c for c in year_str if c.isdigit()))
+
+                                                if 1 <= day <= 31 and 1 <= month_val <= 12 and year_val >= 2000:
+                                                    fecha_obj = date(year_val, month_val, day)
+                                                    fechas_adicionales_parsed.append(fecha_obj)
+                                            except (ValueError, IndexError):
+                                                # Skip fechas inválidas silenciosamente
+                                                continue
+                                except Exception as e:
                                     logger.warning(f"Error parseando fechas adicionales: {e}")
                                     fechas_adicionales_parsed = None
 
@@ -176,11 +231,17 @@ async def scraping_job() -> dict:
 
                         except Exception as e:
                             stats["errors"] += 1
-                            logger.error(f"Error procesando {raw_comp.name}: {e}")
+                            logger.error(f"Error procesando competición '{raw_comp.name}': {type(e).__name__}: {e}")
+                            logger.error(f"  Datos de competición: date_str='{raw_comp.date_str}', pdf_url='{raw_comp.pdf_url}'")
+
+                            # Log additional context for debugging
+                            if hasattr(raw_comp, 'fechas_adicionales') and raw_comp.fechas_adicionales:
+                                logger.error(f"  Fechas adicionales: {raw_comp.fechas_adicionales}")
+
                             await error_repo.log_error(
                                 component="scraper",
                                 error=e,
-                                message=f"Error procesando competición: {raw_comp.name}",
+                                message=f"Error procesando competición: {raw_comp.name} - {type(e).__name__}: {str(e)[:200]}"
                             )
 
                 except Exception as e:
