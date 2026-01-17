@@ -415,9 +415,7 @@ class PDFParser:
         # Extraer categoría del último campo si contiene "SERIE" o similar
         category = "Absoluto"
         last_cell = header_text[-1]
-        if "SERIE" in last_cell.upper():
-            category = last_cell
-        elif any(word in last_cell.upper() for word in ["SUB", "MASTER", "JUVENIL", "CADETE"]):
+        if "SERIE" in last_cell.upper() or any(word in last_cell.upper() for word in ["SUB", "MASTER", "JUVENIL", "CADETE"]):
             category = last_cell
 
         return Event(
