@@ -42,7 +42,6 @@ from src.bot.handlers.search import (
 from src.bot.handlers.start import help_command, start_command
 from src.bot.handlers.subscriptions import (
     smart_subscribe_callback,
-    subscribe_command,
     subscriptions_command,
     unsubscribe_callback,
 )
@@ -70,7 +69,6 @@ def create_application() -> Application:
 
     # Handlers de suscripciones
     application.add_handler(CommandHandler("suscripciones", subscriptions_command))
-    application.add_handler(CommandHandler("suscribirse", subscribe_command))
 
     # Conversation handler para búsquedas
     search_conv = ConversationHandler(

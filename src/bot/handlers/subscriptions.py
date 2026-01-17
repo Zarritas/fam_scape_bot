@@ -16,93 +16,7 @@ from src.utils.logging import get_logger
 logger = get_logger(__name__)
 
 
-async def subscribe_command(
-    update: Update,
-    context: ContextTypes.DEFAULT_TYPE,  # noqa: ARG001
-) -> None:
-    """
-    Handler para el comando /suscribirse.
 
-    Sintaxis: /suscribirse [disciplina] [sexo]
-    Ejemplos:
-    - /suscribirse 400m F
-    - /suscribirse pértiga M
-    """
-    if not update.message:
-        return
-
-    user_id = update.effective_user.id
-    args = context.args or []
-
-    if len(args) != 2:
-        await update.message.reply_text(
-            "<b>❌ Sintaxis incorrecta</b>\n\n"
-            "Uso: <code>/suscribirse disciplina sexo</code>\n\n"
-            "<b>Ejemplos:</b>\n"
-            "• <code>/suscribirse 400m F</code>\n"
-            "• <code>/suscribirse pértiga M</code>\n"
-            "• <code>/suscribirse 100m B</code> (ambos sexos)\n\n"
-            "<b>Sexos disponibles:</b> M (Masculino), F (Femenino), B (Ambos)",
-            parse_mode="HTML",
-        )
-        return
-
-    discipline = args[0].strip()
-    sex_input = args[1].strip().upper()
-
-    # Validar sexo
-    if sex_input not in ["M", "F", "B"]:
-        await update.message.reply_text(
-            "❌ Sexo inválido. Usa: M (Masculino), F (Femenino), o B (Ambos)"
-        )
-        return
-
-    session_factory = get_session_factory()
-
-    try:
-        async with session_factory() as session:
-            # Verificar que el usuario existe
-            user_repo = UserRepository(session)
-            user = await user_repo.get_by_telegram_id(user_id)
-            if not user:
-                await update.message.reply_text("❌ Usuario no encontrado. Usa /start primero.")
-                return
-
-            user_id_db = user.id
-
-            # Intentar suscribir
-            sub_repo = SubscriptionRepository(session)
-            subscription, created = await sub_repo.subscribe(
-                user_id=user_id_db,
-                discipline=discipline,
-                sex=sex_input,
-            )
-
-            if created:
-                sex_label = {"M": "Masculino", "F": "Femenino", "B": "Ambos"}[sex_input]
-                await update.message.reply_text(
-                    f"✅ <b>Suscrito correctamente</b>\n\n"
-                    f"📋 {discipline} {sex_label}\n\n"
-                    f"🔔 Recibirás notificaciones automáticas diarias "
-                    f"a las 10:00 cuando haya nuevas competiciones "
-                    f"con esta prueba.\n\n"
-                    f"📱 Usa <code>/suscripciones</code> para gestionar tus suscripciones.",
-                    parse_mode="HTML",
-                )
-            else:
-                sex_label = {"M": "Masculino", "F": "Femenino", "B": "Ambos"}[sex_input]
-                await update.message.reply_text(
-                    f"ℹ️ <b>Ya estabas suscrito</b>\n\n"
-                    f"📋 {discipline} {sex_label}\n\n"
-                    f"Sigues recibiendo notificaciones para esta prueba.",
-                    parse_mode="HTML",
-                )
-
-            await session.commit()
-
-    except Exception as e:
-        logger.error(f"Error en suscripción: {e}")
-        await update.message.reply_text("❌ Error al procesar la suscripción. Inténtalo de nuevo.")
 
 
 async def subscriptions_command(
@@ -139,9 +53,9 @@ async def subscriptions_command(
                     "No tienes suscripciones activas.\n\n"
                     "<b>¿Cómo suscribirte?</b>\n"
                     "• Usa <code>/buscar</code> para encontrar pruebas\n"
-                    "• Click en ⭐ <b>Suscribirse</b> en los resultados\n"
-                    "• O usa <code>/suscribirse disciplina sexo</code>\n\n"
-                    "<b>Ejemplo:</b> <code>/suscribirse 400m F</code>",
+                    "• Selecciona una disciplina y sexo\n"
+                    "• Click en ⭐ <b>Suscribirse</b> en los resultados\n\n"
+                    "<b>¡Las suscripciones se hacen con botones, no hay que escribir!</b>",
                     parse_mode="HTML",
                 )
                 return

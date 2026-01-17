@@ -12,20 +12,19 @@ Este bot te ayuda a encontrar competiciones de la Federación de Atletismo de Ma
 
 <b>¿Cómo funciona?</b>
 1. Usa el comando /buscar para encontrar pruebas
-2. Suscríbete a tus pruebas favoritas con ⭐
-3. Recibe notificaciones diarias a las 10:00 cuando haya nuevas competiciones
+2. Haz click en "⭐ Suscribirse" en los resultados para activar notificaciones
+3. Usa /suscripciones para gestionar tus suscripciones activas
 
 <b>Comandos disponibles:</b>
-/buscar - Buscar competiciones por prueba
+/buscar - Buscar competiciones por prueba específica
 /proximas - Ver todas las próximas competiciones
-/suscripciones - Gestionar tus suscripciones
-/suscribirse [prueba] [sexo] - Suscripción rápida
+/suscripciones - Gestionar tus suscripciones activas
 /ayuda - Ver esta ayuda
 
 <b>💡 Consejos:</b>
-• Busca una prueba y haz click en "⭐ Suscribirse" para activar notificaciones
-• Usa /suscripciones para ver y gestionar todas tus suscripciones
-• Recibirás alertas automáticas cuando se publiquen nuevas competiciones
+• Las suscripciones se hacen con botones, no hay que escribir comandos
+• Recibirás notificaciones automáticas diarias a las 10:00
+• Puedes desuscribirte fácilmente desde /suscripciones
 
 ¡Empieza usando /buscar para encontrar tus pruebas favoritas!
 """
@@ -42,20 +41,22 @@ HELP_MESSAGE = """
 • /ayuda - Mostrar este mensaje
 
 <b>Suscripciones y notificaciones:</b>
-• <code>/suscribirse 400m F</code> - Suscripción directa a una prueba
 • En resultados de búsqueda: click ⭐ para suscribirte
 • Recibirás notificaciones automáticas diarias a las 10:00
-• Usa /suscripciones para desuscribirte con ❌
+• Usa /suscripciones para ver y gestionar todas tus suscripciones
+• Click ❌ para desuscribirte de cualquier prueba
 
 <b>Búsqueda de pruebas:</b>
 Usa /buscar para encontrar competiciones. Puedes buscar:
 1. <b>Por Prueba:</b> Disciplina específica (ej: "400m", "Pértiga")
 2. <b>Por Fecha:</b> Ver qué pruebas hay un día específico
 
-<b>Sintaxis de suscripción:</b>
-• <code>/suscribirse 100m M</code> - 100m Masculino
-• <code>/suscribirse pértiga F</code> - Pértiga Femenino
-• <code>/suscribirse 400m B</code> - 400m Ambos sexos
+<b>Flujo de suscripción:</b>
+1. Escribe /buscar
+2. Selecciona tipo de prueba y disciplina
+3. Elige sexo (Masculino/Femenino/Ambos)
+4. En los resultados, click "⭐ Suscribirse"
+5. ¡Listo! Recibirás notificaciones automáticas
 
 <b>¿Tienes problemas?</b>
 Si algo no funciona, espera unos minutos y vuelve a intentarlo.
