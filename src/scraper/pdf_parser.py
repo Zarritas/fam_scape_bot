@@ -289,15 +289,38 @@ class PDFParser:
                     try:
                         # Auto-detectar tipo por disciplina en primera columna
                         discipline = str(row[0]).strip() if row[0] else ""
-                        if any(keyword in discipline.upper() for keyword in [
-                            "60", "100", "200", "400", "800", "1500", "3000", "5000", "10000",
-                            "110", "400V", "3000S", "3000O"
-                        ]):
+                        if any(
+                            keyword in discipline.upper()
+                            for keyword in [
+                                "60",
+                                "100",
+                                "200",
+                                "400",
+                                "800",
+                                "1500",
+                                "3000",
+                                "5000",
+                                "10000",
+                                "110",
+                                "400V",
+                                "3000S",
+                                "3000O",
+                            ]
+                        ):
                             event_type = EventType.CARRERA
-                        elif any(keyword in discipline.upper() for keyword in [
-                            "ALTURA", "PÉRTIGA", "PESO", "DISCO", "MARTILLO", "JABALINA",
-                            "LONGITUD", "TRIPLE"
-                        ]):
+                        elif any(
+                            keyword in discipline.upper()
+                            for keyword in [
+                                "ALTURA",
+                                "PÉRTIGA",
+                                "PESO",
+                                "DISCO",
+                                "MARTILLO",
+                                "JABALINA",
+                                "LONGITUD",
+                                "TRIPLE",
+                            ]
+                        ):
                             event_type = EventType.CONCURSO
                         else:
                             continue
@@ -339,13 +362,32 @@ class PDFParser:
                     try:
                         # Auto-detectar tipo por contenido de la fila
                         row_text = " ".join(str(cell) for cell in row if cell).upper()
-                        if any(keyword in row_text for keyword in [
-                            "SERIE", "CARRERA", "METROS", "60M", "100M", "200M", "400M"
-                        ]):
+                        if any(
+                            keyword in row_text
+                            for keyword in [
+                                "SERIE",
+                                "CARRERA",
+                                "METROS",
+                                "60M",
+                                "100M",
+                                "200M",
+                                "400M",
+                            ]
+                        ):
                             event_type = EventType.CARRERA
-                        elif any(keyword in row_text for keyword in [
-                            "ALTURA", "PESO", "DISCO", "PÉRTIGA", "LONGITUD", "TRIPLE", "MARTILLO", "JABALINA"
-                        ]):
+                        elif any(
+                            keyword in row_text
+                            for keyword in [
+                                "ALTURA",
+                                "PESO",
+                                "DISCO",
+                                "PÉRTIGA",
+                                "LONGITUD",
+                                "TRIPLE",
+                                "MARTILLO",
+                                "JABALINA",
+                            ]
+                        ):
                             event_type = EventType.CONCURSO
                         else:
                             continue
@@ -389,15 +431,38 @@ class PDFParser:
             return None
 
         # Determinar tipo de evento
-        if any(keyword in discipline.upper() for keyword in [
-            "60", "100", "200", "400", "800", "1500", "3000", "5000", "10000",
-            "110", "400V", "3000S", "3000O"
-        ]):
+        if any(
+            keyword in discipline.upper()
+            for keyword in [
+                "60",
+                "100",
+                "200",
+                "400",
+                "800",
+                "1500",
+                "3000",
+                "5000",
+                "10000",
+                "110",
+                "400V",
+                "3000S",
+                "3000O",
+            ]
+        ):
             event_type = EventType.CARRERA
-        elif any(keyword in discipline.upper() for keyword in [
-            "ALTURA", "PÉRTIGA", "PESO", "DISCO", "MARTILLO", "JABALINA",
-            "LONGITUD", "TRIPLE"
-        ]):
+        elif any(
+            keyword in discipline.upper()
+            for keyword in [
+                "ALTURA",
+                "PÉRTIGA",
+                "PESO",
+                "DISCO",
+                "MARTILLO",
+                "JABALINA",
+                "LONGITUD",
+                "TRIPLE",
+            ]
+        ):
             event_type = EventType.CONCURSO
         else:
             # No se pudo determinar el tipo
@@ -415,7 +480,9 @@ class PDFParser:
         # Extraer categoría del último campo si contiene "SERIE" o similar
         category = "Absoluto"
         last_cell = header_text[-1]
-        if "SERIE" in last_cell.upper() or any(word in last_cell.upper() for word in ["SUB", "MASTER", "JUVENIL", "CADETE"]):
+        if "SERIE" in last_cell.upper() or any(
+            word in last_cell.upper() for word in ["SUB", "MASTER", "JUVENIL", "CADETE"]
+        ):
             category = last_cell
 
         return Event(
@@ -452,7 +519,9 @@ class PDFParser:
                     scheduled_time = time(int(hour), int(minute))
 
         # Extraer disciplina, sexo y categoría de los campos restantes
-        remaining_cells = [cell for cell in row_text if cell and not re.search(r"(\d{1,2}):(\d{2})", cell)]
+        remaining_cells = [
+            cell for cell in row_text if cell and not re.search(r"(\d{1,2}):(\d{2})", cell)
+        ]
 
         for cell in remaining_cells:
             # Buscar patrón de disciplina (ej: "60m", "Altura", "Peso")
