@@ -303,6 +303,13 @@ SAMPLE_CALENDAR_HTML = """
                                                 <td><a href="https://inscripciones.fam.es" target="_blank">Inscribirse</a></td>
                                             </tr>
                                             <tr>
+                                                <td>17y18.01 (S-D)</td>
+                                                <td>Copa Madrid Absoluta - Combinadas</td>
+                                                <td>Pabellón Municipal de Gallur</td>
+                                                <td><a href="/pdfs/modificado_combinadasabsoluto_gallur_2026_01_17y18.pdf" target="_blank">PDF</a></td>
+                                                <td><a href="https://inscripciones.fam.es" target="_blank">Inscribirse</a></td>
+                                            </tr>
+                                            <tr>
                                                 <td>17/01/2026 - 18/01/2026</td>
                                                 <td>Copa Madrid Absoluta - Combinadas</td>
                                                 <td>Pabellón Municipal de Gallur</td>

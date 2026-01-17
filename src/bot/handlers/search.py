@@ -9,6 +9,7 @@ from telegram.ext import (
     ContextTypes,
     ConversationHandler,
 )
+from telegram import InlineKeyboardMarkup
 
 from src.bot.keyboards import (
     build_subscription_text,
@@ -17,12 +18,13 @@ from src.bot.keyboards import (
     get_field_events_keyboard,
     get_search_method_keyboard,
     get_sex_keyboard,
+    get_smart_subscription_keyboard,
     get_track_events_keyboard,
     subscription_keyboard,
 )
 from src.bot.messages import GENERIC_ERROR
 from src.database.engine import get_session_factory
-from src.database.repositories import CompetitionRepository
+from src.database.repositories import CompetitionRepository, SubscriptionRepository, UserRepository
 from src.notifications.service import (
     format_competition_details,
     format_notification_message,
@@ -36,6 +38,30 @@ SELECT_METHOD, SELECT_TYPE, SELECT_DISCIPLINE, SELECT_SEX, SELECT_DATE = range(5
 
 # Almacenamiento temporal
 _user_event_type: dict[int, str] = {}
+
+
+def combine_keyboards(nav_keyboard: InlineKeyboardMarkup, sub_keyboard: InlineKeyboardMarkup) -> InlineKeyboardMarkup:
+    """
+    Combina teclado de navegación con teclado de suscripción.
+
+    Args:
+        nav_keyboard: Teclado de navegación (prev/next)
+        sub_keyboard: Teclado de suscripción (subscribe/unsubscribe)
+
+    Returns:
+        Teclado combinado
+    """
+    combined_buttons = []
+
+    # Agregar botones de navegación primero
+    if nav_keyboard.inline_keyboard:
+        combined_buttons.extend(nav_keyboard.inline_keyboard)
+
+    # Agregar botones de suscripción
+    if sub_keyboard.inline_keyboard:
+        combined_buttons.extend(sub_keyboard.inline_keyboard)
+
+    return InlineKeyboardMarkup(combined_buttons)
 
 
 async def search_command(
@@ -278,16 +304,31 @@ async def sex_selected(
                 )
                 slides.append(slide)
 
-            # Guardar slides en user_data para navegación
-            context.user_data["subscription_slides"] = (
-                slides  # Reusamos clave o nueva? Mejor nueva.
-            )
+            # Guardar slides y datos de búsqueda para navegación
             context.user_data["search_slides"] = slides
+            context.user_data["search_discipline"] = discipline
+            context.user_data["search_sex"] = sex
+
+            # Verificar si el usuario está suscrito a esta disciplina/sexo
+            user_repo = UserRepository(session)
+            user = await user_repo.get_by_telegram_id(query.from_user.id)
+            is_subscribed = False
+            if user:
+                sub_repo = SubscriptionRepository(session)
+                subscription = await sub_repo.get_subscription(user.id, discipline, sex)
+                is_subscribed = subscription is not None
+
+            # Crear teclado combinado (navegación + suscripción)
+            nav_keyboard = subscription_keyboard(0, len(slides), prefix="search")
+            sub_keyboard = get_smart_subscription_keyboard(discipline, sex, is_subscribed)
+
+            # Combinar teclados
+            combined_keyboard = combine_keyboards(nav_keyboard, sub_keyboard)
 
             # Enviar primer resultado
             await query.edit_message_text(
                 build_subscription_text(slides, 0),
-                reply_markup=subscription_keyboard(0, len(slides), prefix="search"),
+                reply_markup=combined_keyboard,
                 parse_mode="HTML",
             )
 
@@ -383,6 +424,9 @@ async def search_slider_callback(
     index = int(index)
 
     slides = context.user_data.get("search_slides")
+    discipline = context.user_data.get("search_discipline")
+    sex = context.user_data.get("search_sex")
+
     if not slides:
         await query.edit_message_text("⚠️ La sesión ha caducado. Vuelve a buscar.")
         return
@@ -392,8 +436,32 @@ async def search_slider_callback(
     else:
         index -= 1
 
+    # Recrear teclado combinado con suscripción
+    nav_keyboard = subscription_keyboard(index, len(slides), prefix="search")
+
+    # Verificar estado de suscripción si tenemos los datos
+    is_subscribed = False
+    if discipline and sex:
+        session_factory = get_session_factory()
+        try:
+            async with session_factory() as session:
+                user_repo = UserRepository(session)
+                user = await user_repo.get_by_telegram_id(query.from_user.id)
+                if user:
+                    sub_repo = SubscriptionRepository(session)
+                    subscription = await sub_repo.get_subscription(user.id, discipline, sex)
+                    is_subscribed = subscription is not None
+
+            sub_keyboard = get_smart_subscription_keyboard(discipline, sex, is_subscribed)
+            combined_keyboard = combine_keyboards(nav_keyboard, sub_keyboard)
+        except Exception as e:
+            logger.error(f"Error verificando suscripción en navegación: {e}")
+            combined_keyboard = nav_keyboard
+    else:
+        combined_keyboard = nav_keyboard
+
     await query.edit_message_text(
         build_subscription_text(slides, index),
-        reply_markup=subscription_keyboard(index, len(slides), prefix="search"),
+        reply_markup=combined_keyboard,
         parse_mode="HTML",
     )

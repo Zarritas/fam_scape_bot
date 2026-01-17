@@ -8,39 +8,57 @@ Todos los mensajes están en español.
 WELCOME_MESSAGE = """
 <b>🏃 ¡Bienvenido al Bot de Atletismo Madrid!</b>
 
-Este bot te ayuda a encontrar competiciones de la Federación de Atletismo de Madrid que incluyan tus pruebas favoritas.
+Este bot te ayuda a encontrar competiciones de la Federación de Atletismo de Madrid y recibir notificaciones automáticas.
 
 <b>¿Cómo funciona?</b>
-1. Usa el comando /buscar
-2. Selecciona el tipo de prueba (carrera o concurso)
-3. Elige la prueba específica (ej: 100m, Longitud)
-4. ¡El bot te mostrará todas las competiciones futuras que incluyen esa prueba!
+1. Usa el comando /buscar para encontrar pruebas
+2. Suscríbete a tus pruebas favoritas con ⭐
+3. Recibe notificaciones diarias a las 10:00 cuando haya nuevas competiciones
 
 <b>Comandos disponibles:</b>
 /buscar - Buscar competiciones por prueba
 /proximas - Ver todas las próximas competiciones
+/suscripciones - Gestionar tus suscripciones
+/suscribirse [prueba] [sexo] - Suscripción rápida
 /ayuda - Ver esta ayuda
 
-¡Empieza usando /buscar para encontrar tu próxima competición!
+<b>💡 Consejos:</b>
+• Busca una prueba y haz click en "⭐ Suscribirse" para activar notificaciones
+• Usa /suscripciones para ver y gestionar todas tus suscripciones
+• Recibirás alertas automáticas cuando se publiquen nuevas competiciones
+
+¡Empieza usando /buscar para encontrar tus pruebas favoritas!
 """
 
 # Mensaje de ayuda
 HELP_MESSAGE = """
 <b>📖 Ayuda - Bot de Atletismo Madrid</b>
 
-<b>Comandos de usuario:</b>
+<b>Comandos principales:</b>
 • /start - Iniciar el bot y ver bienvenida
 • /buscar - Buscar competiciones por prueba específica
 • /proximas - Ver lista general de próximas competiciones
+• /suscripciones - Ver y gestionar tus suscripciones activas
 • /ayuda - Mostrar este mensaje
+
+<b>Suscripciones y notificaciones:</b>
+• <code>/suscribirse 400m F</code> - Suscripción directa a una prueba
+• En resultados de búsqueda: click ⭐ para suscribirte
+• Recibirás notificaciones automáticas diarias a las 10:00
+• Usa /suscripciones para desuscribirte con ❌
 
 <b>Búsqueda de pruebas:</b>
 Usa /buscar para encontrar competiciones. Puedes buscar:
-1. <b>Por Prueba:</b> Buscando disciplina específica (ej: "400m", "Pértiga")
-2. <b>Por Fecha:</b> Seleccionando una fecha del calendario para ver qué pruebas hay.
+1. <b>Por Prueba:</b> Disciplina específica (ej: "400m", "Pértiga")
+2. <b>Por Fecha:</b> Ver qué pruebas hay un día específico
+
+<b>Sintaxis de suscripción:</b>
+• <code>/suscribirse 100m M</code> - 100m Masculino
+• <code>/suscribirse pértiga F</code> - Pértiga Femenino
+• <code>/suscribirse 400m B</code> - 400m Ambos sexos
 
 <b>¿Tienes problemas?</b>
-Si algo no funciona correctamente, espera unos minutos y vuelve a intentarlo.
+Si algo no funciona, espera unos minutos y vuelve a intentarlo.
 """
 
 # Plantilla para próximas competiciones

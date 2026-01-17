@@ -195,6 +195,60 @@ def get_admin_confirm_scrape_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(keyboard)
 
 
+def get_smart_subscription_keyboard(discipline: str, sex: str, is_subscribed: bool) -> InlineKeyboardMarkup:
+    """
+    Teclado inteligente para suscribirse/desuscribirse.
+
+    Muestra "Suscribirse" si no está suscrito, "Desuscribirse" si ya lo está.
+
+    Args:
+        discipline: Nombre de la disciplina (ej: "400m")
+        sex: Sexo ("M", "F", o "B")
+        is_subscribed: True si ya está suscrito
+    """
+    sex_label = "Masculino" if sex == "M" else ("Femenino" if sex == "F" else "Ambos")
+
+    if is_subscribed:
+        text = f"❌ Desuscribirse de {discipline} {sex_label}"
+        callback = f"smart_sub:{discipline}:{sex}:unsub"
+        emoji = "❌"
+    else:
+        text = f"⭐ Suscribirse a {discipline} {sex_label}"
+        callback = f"smart_sub:{discipline}:{sex}:sub"
+        emoji = "⭐"
+
+    keyboard = [
+        [InlineKeyboardButton(text, callback_data=callback)],
+    ]
+
+    return InlineKeyboardMarkup(keyboard)
+
+
+def get_subscriptions_management_keyboard(subscriptions: list) -> InlineKeyboardMarkup:
+    """
+    Teclado para gestionar suscripciones activas.
+
+    Muestra lista de suscripciones con botones para desuscribirse.
+
+    Args:
+        subscriptions: Lista de objetos Subscription
+    """
+    keyboard = []
+
+    for sub in subscriptions:
+        sex_label = "Masculino" if sub.sex == "M" else ("Femenino" if sub.sex == "F" else "Ambos")
+        text = f"❌ {sub.discipline} {sex_label}"
+        callback = f"unsub:{sub.discipline}:{sub.sex}"
+        keyboard.append([InlineKeyboardButton(text, callback_data=callback)])
+
+    # Botón para cerrar
+    keyboard.append([
+        InlineKeyboardButton("🔙 Cerrar", callback_data="cancel")
+    ])
+
+    return InlineKeyboardMarkup(keyboard)
+
+
 def subscription_keyboard(index: int, total: int, prefix: str = "subs"):
     buttons = []
 

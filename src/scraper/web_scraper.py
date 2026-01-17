@@ -37,6 +37,9 @@ MONTHS_ES: dict[str, int] = {
     "diciembre": 12,
 }
 
+# Diccionario inverso para obtener nombre del mes por número
+MONTHS_BY_NUMBER = {v: k for k, v in MONTHS_ES.items()}
+
 
 class WebScraperError(Exception):
     """Error durante el scraping web."""
@@ -120,12 +123,12 @@ class WebScraper:
             raise WebScraperError(f"Error obteniendo calendario: {e}") from e
 
         try:
-            return self.parse_calendar_html(response.text)
+            return self.parse_calendar_html(response.text, month, year)
         except Exception as e:
             logger.error(f"Error parseando HTML: {e}")
             raise WebScraperError(f"Error parseando calendario: {e}") from e
 
-    def parse_calendar_html(self, html: str) -> list[RawCompetition]:
+    def parse_calendar_html(self, html: str, default_month: int = 1, default_year: int = 2026) -> list[RawCompetition]:
         """
         Parsea el HTML del calendario FAM y extrae las competiciones.
 
@@ -148,14 +151,14 @@ class WebScraper:
         rows = calendar_table.find_all("tr")[1:]
 
         for row in rows:
-            competition = self._parse_real_competition_row(row)
+            competition = self._parse_real_competition_row(row, default_month, default_year)
             if competition:
                 competitions.append(competition)
 
         logger.info(f"Encontradas {len(competitions)} competiciones")
         return competitions
 
-    def _parse_real_competition_row(self, row: Tag) -> RawCompetition | None:
+    def _parse_real_competition_row(self, row: Tag, month: int, year: int) -> RawCompetition | None:
         """
         Parsea una fila de la tabla real del calendario FAM.
 
@@ -208,10 +211,13 @@ class WebScraper:
         if not name or not pdf_url:
             return None
 
+        # Normalizar la fecha para display legible
+        normalized_date = self._normalize_date(date_str, month, year)
+
         # Crear RawCompetition con soporte para fechas adicionales
         competition = RawCompetition(
             name=name,
-            date_str=date_str,
+            date_str=normalized_date,  # Usar fecha normalizada
             pdf_url=pdf_url,
             enrollment_url=enrollment_url,
             has_modifications=has_modifications,
@@ -392,10 +398,10 @@ class WebScraper:
 
     def _normalize_date(self, date_str: str, month: int, year: int) -> str:  # noqa: ARG002
         """
-        Normaliza el formato de fecha del calendario.
+        Normaliza el formato de fecha del calendario a formato legible.
 
         Entrada: "03.01 (S)" o "17y18.01 (S-D)"
-        Salida: "03/01" o "17-18/01"
+        Salida: "3 enero 2026" o "17-18 enero 2026"
         """
         if not date_str:
             return ""
@@ -407,13 +413,15 @@ class WebScraper:
         range_match = re.match(r"(\d{1,2})y(\d{1,2})\.(\d{2})", date_str)
         if range_match:
             day1, day2, month_num = range_match.groups()
-            return f"{day1}-{day2}/{month_num}"
+            month_name = MONTHS_BY_NUMBER.get(int(month_num), f"mes {month_num}")
+            return f"{int(day1)}-{int(day2)} {month_name} {year}"
 
         # Patrón para fecha simple: "03.01"
         simple_match = re.match(r"(\d{1,2})\.(\d{2})", date_str)
         if simple_match:
             day, month_num = simple_match.groups()
-            return f"{day}/{month_num}"
+            month_name = MONTHS_BY_NUMBER.get(int(month_num), f"mes {month_num}")
+            return f"{int(day)} {month_name} {year}"
 
         return date_str
 
@@ -502,7 +510,7 @@ class WebScraper:
             response.raise_for_status()
 
             # Parsear todas las competiciones
-            all_competitions = self.parse_calendar_html(response.text)
+            all_competitions = self.parse_calendar_html(response.text, 1, 2026)  # Valores por defecto
 
             # Filtrar por los meses solicitados
             filtered_competitions = []

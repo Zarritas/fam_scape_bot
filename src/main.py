@@ -40,6 +40,12 @@ from src.bot.handlers.search import (
     type_selected,
 )
 from src.bot.handlers.start import help_command, start_command
+from src.bot.handlers.subscriptions import (
+    smart_subscribe_callback,
+    subscribe_command,
+    subscriptions_command,
+    unsubscribe_callback,
+)
 from src.config import settings
 from src.database.engine import close_db, init_db
 from src.scheduler.runner import setup_scheduler, start_scheduler, stop_scheduler
@@ -61,6 +67,10 @@ def create_application() -> Application:
     application.add_handler(CommandHandler("start", start_command))
     application.add_handler(CommandHandler("ayuda", help_command))
     application.add_handler(CommandHandler("help", help_command))
+
+    # Handlers de suscripciones
+    application.add_handler(CommandHandler("suscripciones", subscriptions_command))
+    application.add_handler(CommandHandler("suscribirse", subscribe_command))
 
     # Conversation handler para búsquedas
     search_conv = ConversationHandler(
@@ -104,6 +114,8 @@ def create_application() -> Application:
     # Otros handlers de usuario
     application.add_handler(CommandHandler("proximas", upcoming_command))
     application.add_handler(CallbackQueryHandler(search_slider_callback, pattern="^search:"))
+    application.add_handler(CallbackQueryHandler(smart_subscribe_callback, pattern="^smart_sub:"))
+    application.add_handler(CallbackQueryHandler(unsubscribe_callback, pattern="^unsub:"))
     application.add_handler(CallbackQueryHandler(cancel_handler, pattern=r"^cancel$"))
 
     # Handlers de admin
