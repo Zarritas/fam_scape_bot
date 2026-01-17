@@ -7,6 +7,7 @@ Extrae información estructurada de los PDFs de convocatorias:
 - Tablas de pruebas (carreras y concursos)
 """
 
+import contextlib
 import re
 from datetime import date, time
 from io import BytesIO
@@ -18,7 +19,6 @@ from src.scraper.models import (
     Event,
     EventType,
     Sex,
-    detect_event_type,
     normalize_discipline,
 )
 from src.utils.hash import calculate_pdf_hash
@@ -266,10 +266,8 @@ class PDFParser:
             time_match = re.search(r"(\d{1,2}):(\d{2})", cell)
             if time_match and not scheduled_time:
                 hour, minute = time_match.groups()
-                try:
+                with contextlib.suppress(ValueError):
                     scheduled_time = time(int(hour), int(minute))
-                except ValueError:
-                    pass
 
             # Buscar disciplina (metros, saltos, lanzamientos)
             if not discipline:

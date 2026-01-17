@@ -8,7 +8,7 @@ Jobs:
 
 from datetime import date, timedelta
 
-from src.database.engine import get_session_factory, get_session
+from src.database.engine import get_session, get_session_factory
 from src.database.repositories import (
     CompetitionRepository,
     ErrorRepository,

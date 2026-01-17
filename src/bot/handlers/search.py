@@ -3,13 +3,9 @@ Handlers para búsqueda de pruebas.
 Reemplaza al sistema de suscripciones.
 """
 
-from telegram import Update
+from telegram import InlineKeyboardMarkup, Update
 from telegram.error import BadRequest
-from telegram.ext import (
-    ContextTypes,
-    ConversationHandler,
-)
-from telegram import InlineKeyboardMarkup
+from telegram.ext import ContextTypes, ConversationHandler
 
 from src.bot.keyboards import (
     build_subscription_text,
