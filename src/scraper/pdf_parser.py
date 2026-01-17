@@ -270,15 +270,38 @@ class PDFParser:
                     if current_event_type is None:
                         # Intentar detectar tipo por nombre de disciplina
                         discipline = str(row[0]).strip() if row[0] else ""
-                        if any(keyword in discipline.upper() for keyword in [
-                            "60", "100", "200", "400", "800", "1500", "3000", "5000", "10000",
-                            "110", "400V", "3000S", "3000O"
-                        ]):
+                        if any(
+                            keyword in discipline.upper()
+                            for keyword in [
+                                "60",
+                                "100",
+                                "200",
+                                "400",
+                                "800",
+                                "1500",
+                                "3000",
+                                "5000",
+                                "10000",
+                                "110",
+                                "400V",
+                                "3000S",
+                                "3000O",
+                            ]
+                        ):
                             current_event_type = EventType.CARRERA
-                        elif any(keyword in discipline.upper() for keyword in [
-                            "ALTURA", "PÉRTIGA", "PESO", "DISCO", "MARTILLO", "JABALINA",
-                            "LONGITUD", "TRIPLE"
-                        ]):
+                        elif any(
+                            keyword in discipline.upper()
+                            for keyword in [
+                                "ALTURA",
+                                "PÉRTIGA",
+                                "PESO",
+                                "DISCO",
+                                "MARTILLO",
+                                "JABALINA",
+                                "LONGITUD",
+                                "TRIPLE",
+                            ]
+                        ):
                             current_event_type = EventType.CONCURSO
                         else:
                             continue
