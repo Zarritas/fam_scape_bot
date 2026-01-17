@@ -170,32 +170,70 @@ class PDFParser:
         match = re.search(r"LUGAR:\s*(.+?)(?:\n|$)", text, re.IGNORECASE)
         if match:
             return match.group(1).strip()
+
+        # También buscar lugares conocidos en el texto
+        known_venues = [
+            "Vallehermoso",
+            "Gallur",
+            "Alcorcón",
+            "Alcobendas",
+            "Pista Cubierta",
+            "Polideportivo",
+        ]
+
+        for venue in known_venues:
+            if venue.lower() in text.lower():
+                return venue
+
         return None
 
     def _extract_date(self, text: str) -> date | None:
         """Extrae la fecha de la competición."""
-        # Buscar patrón "DIA:" seguido de la fecha
-        match = re.search(r"DIA:\s*(.+?)(?:\n|$)", text, re.IGNORECASE)
-        if match:
-            date_str = match.group(1).strip()
+        # Buscar diferentes patrones de fecha
+        patterns = [
+            r"DIA:\s*(.+?)(?:\n|$)",  # DIA: formato
+            r"Fecha:\s*(.+?)(?:\n|$)",  # Fecha: formato
+            r"Fecha de la competición:\s*(.+?)(?:\n|$)",  # Fecha de la competición: formato
+        ]
 
-            # Intentar diferentes formatos de fecha
-            # Formato: 03/01/2026
-            date_match = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})", date_str)
-            if date_match:
-                day, month, year = date_match.groups()
-                try:
-                    return date(int(year), int(month), int(day))
-                except ValueError:
-                    pass
+        date_str = None
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                date_str = match.group(1).strip()
+                break
 
-            # Formato: 17 y 18/01/2026
-            date_match = re.search(r"(\d{1,2})\s*y\s*(\d{1,2})[/-](\d{1,2})[/-](\d{4})", date_str)
-            if date_match:
-                # Para fechas múltiples, usar la primera fecha
-                day1, day2, month, year = date_match.groups()
+        if not date_str:
+            return None
+
+        # Intentar diferentes formatos de fecha
+        # Formato: 03/01/2026
+        date_match = re.search(r"(\d{1,2})[/-](\d{1,2})[/-](\d{4})", date_str)
+        if date_match:
+            day, month, year = date_match.groups()
+            try:
+                return date(int(year), int(month), int(day))
+            except ValueError:
+                pass
+
+        # Formato: 17 y 18/01/2026
+        date_match = re.search(r"(\d{1,2})\s*y\s*(\d{1,2})[/-](\d{1,2})[/-](\d{4})", date_str)
+        if date_match:
+            # Para fechas múltiples, usar la primera fecha
+            day1, day2, month, year = date_match.groups()
+            try:
+                return date(int(year), int(month), int(day1))
+            except ValueError:
+                pass
+
+        # Formato: 11 de enero de 2026
+        date_match = re.search(r"(\d{1,2})\s*de\s+(\w+)\s*de\s+(\d{4})", date_str, re.IGNORECASE)
+        if date_match:
+            day, month_name, year = date_match.groups()
+            month = self.MONTHS_ES.get(month_name.lower())
+            if month:
                 try:
-                    return date(int(year), int(month), int(day1))
+                    return date(int(year), month, int(day))
                 except ValueError:
                     pass
 
@@ -218,18 +256,8 @@ class PDFParser:
             elif "CONCURSOS" in header_text:
                 event_type = EventType.CONCURSO
             else:
-                # Intentar detectar por contenido de filas
-                sample_row = table[1] if len(table) > 1 else []
-                sample_text = " ".join(str(cell) for cell in sample_row if cell).upper()
-
-                if any(keyword in sample_text for keyword in ["SERIE", "CARRERA", "METROS"]):
-                    event_type = EventType.CARRERA
-                elif any(
-                    keyword in sample_text for keyword in ["ALTURA", "PESO", "DISCO", "PÉRTIGA"]
-                ):
-                    event_type = EventType.CONCURSO
-                else:
-                    continue
+                # Para tablas mixtas, determinar el tipo por fila individual
+                event_type = None
 
             # Procesar filas de datos (saltar header)
             for row in table[1:]:
@@ -237,11 +265,29 @@ class PDFParser:
                     continue
 
                 try:
-                    event = self._parse_event_row(row, event_type)
+                    # Si no hay tipo determinado, intentar detectar por disciplina
+                    current_event_type = event_type
+                    if current_event_type is None:
+                        # Intentar detectar tipo por nombre de disciplina
+                        discipline = str(row[0]).strip() if row[0] else ""
+                        if any(keyword in discipline.upper() for keyword in [
+                            "60", "100", "200", "400", "800", "1500", "3000", "5000", "10000",
+                            "110", "400V", "3000S", "3000O"
+                        ]):
+                            current_event_type = EventType.CARRERA
+                        elif any(keyword in discipline.upper() for keyword in [
+                            "ALTURA", "PÉRTIGA", "PESO", "DISCO", "MARTILLO", "JABALINA",
+                            "LONGITUD", "TRIPLE"
+                        ]):
+                            current_event_type = EventType.CONCURSO
+                        else:
+                            continue
+
+                    event = self._parse_event_row(row, current_event_type)
                     if event:
                         events.append(event)
                 except Exception as e:
-                    logger.warning(f"Error parseando fila de evento: {e}")
+                    logger.warning(f"Error procesando fila de evento: {e}")
                     continue
 
         return events
