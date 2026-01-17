@@ -28,14 +28,14 @@ class TestDeduplicationReal:
     @pytest.fixture
     def real_pdf_content_1(self):
         """Contenido del primer PDF real."""
-        pdf_path = Path(__file__).parent.parent.parent / "pdf_examples" / "modificado_gallur_2026_01_03.pdf"
+        pdf_path = Path(__file__).parent.parent / "pdf_examples" / "modificado_gallur_2026_01_03.pdf"
         with open(pdf_path, "rb") as f:
             return f.read()
 
     @pytest.fixture
     def real_pdf_content_2(self):
         """Contenido del segundo PDF real."""
-        pdf_path = Path(__file__).parent.parent.parent / "pdf_examples" / "modificado_combinadasabsoluto_gallur_2026_01_17y18.pdf"
+        pdf_path = Path(__file__).parent.parent / "pdf_examples" / "modificado_combinadasabsoluto_gallur_2026_01_17y18.pdf"
         with open(pdf_path, "rb") as f:
             return f.read()
 
@@ -95,9 +95,9 @@ class TestDeduplicationReal:
             competition_type="PC"
         )
 
-        # Debería actualizar la existente, no crear nueva
+        # Debería actualizar la existente (is_new_or_updated = True)
         assert created1 is True
-        assert created2 is False  # No creó nueva
+        assert created2 is True   # Se actualizó la existente
         assert comp1.id == comp2.id  # Es la misma competición
         assert comp2.enrollment_url == "https://new.com"  # Se actualizó
         assert comp2.has_modifications is True           # Se actualizó

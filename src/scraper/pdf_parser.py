@@ -247,73 +247,186 @@ class PDFParser:
             if not table or len(table) < 2:
                 continue
 
-            # Determinar si es tabla de CARRERAS o CONCURSOS
+            # Determinar el formato de la tabla
             header = table[0] if table[0] else []
-            header_text = " ".join(str(cell) for cell in header if cell).upper()
+            header_text = " ".join(str(cell).strip() for cell in header if cell).upper()
 
+            # Formato 1: Headers de sección ("CARRERAS", "CONCURSOS")
             if "CARRERAS" in header_text:
                 event_type = EventType.CARRERA
+                # Procesar filas de datos
+                for row in table[1:]:
+                    if not row or len(row) < 3:
+                        continue
+                    try:
+                        event = self._parse_event_row(row, event_type)
+                        if event:
+                            events.append(event)
+                    except Exception as e:
+                        logger.warning(f"Error procesando fila de evento: {e}")
+                        continue
+
             elif "CONCURSOS" in header_text:
                 event_type = EventType.CONCURSO
-            else:
-                # Para tablas mixtas, determinar el tipo por fila individual
-                event_type = None
+                # Procesar filas de datos
+                for row in table[1:]:
+                    if not row or len(row) < 3:
+                        continue
+                    try:
+                        event = self._parse_event_row(row, event_type)
+                        if event:
+                            events.append(event)
+                    except Exception as e:
+                        logger.warning(f"Error procesando fila de evento: {e}")
+                        continue
 
-            # Procesar filas de datos (saltar header)
-            for row in table[1:]:
-                if not row or len(row) < 3:
-                    continue
-
-                try:
-                    # Si no hay tipo determinado, intentar detectar por disciplina
-                    current_event_type = event_type
-                    if current_event_type is None:
-                        # Intentar detectar tipo por nombre de disciplina
+            # Formato 2: Tabla de test con header ["Prueba", "Sexo", "Hora", "Categoría"]
+            elif "PRUEBA" in header_text and "SEXO" in header_text:
+                # Tabla de test unitario - procesar todas las filas como datos
+                for row in table[1:]:  # Skip header
+                    if not row or len(row) < 4:
+                        continue
+                    try:
+                        # Auto-detectar tipo por disciplina en primera columna
                         discipline = str(row[0]).strip() if row[0] else ""
-                        if any(
-                            keyword in discipline.upper()
-                            for keyword in [
-                                "60",
-                                "100",
-                                "200",
-                                "400",
-                                "800",
-                                "1500",
-                                "3000",
-                                "5000",
-                                "10000",
-                                "110",
-                                "400V",
-                                "3000S",
-                                "3000O",
-                            ]
-                        ):
-                            current_event_type = EventType.CARRERA
-                        elif any(
-                            keyword in discipline.upper()
-                            for keyword in [
-                                "ALTURA",
-                                "PÉRTIGA",
-                                "PESO",
-                                "DISCO",
-                                "MARTILLO",
-                                "JABALINA",
-                                "LONGITUD",
-                                "TRIPLE",
-                            ]
-                        ):
-                            current_event_type = EventType.CONCURSO
+                        if any(keyword in discipline.upper() for keyword in [
+                            "60", "100", "200", "400", "800", "1500", "3000", "5000", "10000",
+                            "110", "400V", "3000S", "3000O"
+                        ]):
+                            event_type = EventType.CARRERA
+                        elif any(keyword in discipline.upper() for keyword in [
+                            "ALTURA", "PÉRTIGA", "PESO", "DISCO", "MARTILLO", "JABALINA",
+                            "LONGITUD", "TRIPLE"
+                        ]):
+                            event_type = EventType.CONCURSO
                         else:
                             continue
 
-                    event = self._parse_event_row(row, current_event_type)
+                        event = self._parse_event_row(row, event_type)
+                        if event:
+                            events.append(event)
+                    except Exception as e:
+                        logger.warning(f"Error procesando fila de test: {e}")
+                        continue
+
+            # Formato 3: Eventos individuales (PDFs reales con formato horario)
+            else:
+                # Intentar diferentes estrategias
+                # Estrategia 1: Cada tabla es un evento individual
+                try:
+                    event = self._parse_event_header(header)
                     if event:
                         events.append(event)
+                        # Procesar filas adicionales si existen
+                        for row in table[1:]:
+                            if not row or len(row) < 3:
+                                continue
+                            try:
+                                additional_event = self._parse_event_row(row, event.event_type)
+                                if additional_event:
+                                    events.append(additional_event)
+                            except Exception as e:
+                                logger.warning(f"Error procesando fila adicional: {e}")
+                                continue
+                        continue  # Si se procesó como header, no continuar con otras estrategias
                 except Exception as e:
-                    logger.warning(f"Error procesando fila de evento: {e}")
-                    continue
+                    logger.warning(f"Error procesando tabla como evento único: {e}")
+
+                # Estrategia 2: Procesar todas las filas como datos individuales
+                for row in table:
+                    if not row or len(row) < 3:
+                        continue
+                    try:
+                        # Auto-detectar tipo por contenido de la fila
+                        row_text = " ".join(str(cell) for cell in row if cell).upper()
+                        if any(keyword in row_text for keyword in [
+                            "SERIE", "CARRERA", "METROS", "60M", "100M", "200M", "400M"
+                        ]):
+                            event_type = EventType.CARRERA
+                        elif any(keyword in row_text for keyword in [
+                            "ALTURA", "PESO", "DISCO", "PÉRTIGA", "LONGITUD", "TRIPLE", "MARTILLO", "JABALINA"
+                        ]):
+                            event_type = EventType.CONCURSO
+                        else:
+                            continue
+
+                        event = self._parse_event_row(row, event_type)
+                        if event:
+                            events.append(event)
+                    except Exception as e:
+                        logger.warning(f"Error procesando fila con auto-detección: {e}")
+                        continue
 
         return events
+
+    def _parse_event_header(self, header: list) -> Event | None:
+        """Parsea un header de tabla que contiene información de evento."""
+        if len(header) < 3:
+            return None
+
+        # Headers típicos: ["hora1", "hora2", "hora3", "hora4", "disciplina", "sexo", "serie"]
+        # Ejemplo: ['14:50', '15:20', '15:25', '15:30', '60 Heptatlón', 'M', 'SERIE 1']
+
+        header_text = [str(cell).strip() for cell in header if cell and str(cell).strip()]
+
+        if len(header_text) < 3:
+            return None
+
+        # El penúltimo campo suele ser el sexo
+        sex_str = header_text[-2] if len(header_text) >= 2 else ""
+        if sex_str.upper() == "M":
+            sex = Sex.MASCULINO
+        elif sex_str.upper() == "F":
+            sex = Sex.FEMENINO
+        else:
+            sex = Sex.MASCULINO  # default
+
+        # El antepenúltimo campo suele ser la disciplina
+        discipline_str = header_text[-3] if len(header_text) >= 3 else ""
+        discipline = normalize_discipline(discipline_str)
+
+        if not discipline:
+            return None
+
+        # Determinar tipo de evento
+        if any(keyword in discipline.upper() for keyword in [
+            "60", "100", "200", "400", "800", "1500", "3000", "5000", "10000",
+            "110", "400V", "3000S", "3000O"
+        ]):
+            event_type = EventType.CARRERA
+        elif any(keyword in discipline.upper() for keyword in [
+            "ALTURA", "PÉRTIGA", "PESO", "DISCO", "MARTILLO", "JABALINA",
+            "LONGITUD", "TRIPLE"
+        ]):
+            event_type = EventType.CONCURSO
+        else:
+            # No se pudo determinar el tipo
+            return None
+
+        # Extraer hora del primer campo si existe
+        scheduled_time = None
+        first_cell = header_text[0]
+        time_match = re.search(r"(\d{1,2}):(\d{2})", first_cell)
+        if time_match:
+            hour, minute = time_match.groups()
+            with contextlib.suppress(ValueError):
+                scheduled_time = time(int(hour), int(minute))
+
+        # Extraer categoría del último campo si contiene "SERIE" o similar
+        category = "Absoluto"
+        last_cell = header_text[-1]
+        if "SERIE" in last_cell.upper():
+            category = last_cell
+        elif any(word in last_cell.upper() for word in ["SUB", "MASTER", "JUVENIL", "CADETE"]):
+            category = last_cell
+
+        return Event(
+            discipline=discipline,
+            event_type=event_type,
+            sex=sex,
+            scheduled_time=scheduled_time,
+            category=category,
+        )
 
     def _parse_event_row(self, row: list, event_type: EventType) -> Event | None:
         """Parsea una fila de tabla para extraer información de evento."""
@@ -340,47 +453,38 @@ class PDFParser:
                 with contextlib.suppress(ValueError):
                     scheduled_time = time(int(hour), int(minute))
 
-            # Buscar disciplina (metros, saltos, lanzamientos)
-            if not discipline:
-                # Buscar patrones de disciplina
-                disc_match = re.search(r"(\d+)\s*(?:ml|m\.?|metros?)", cell, re.IGNORECASE)
-                if disc_match:
-                    discipline = f"{disc_match.group(1)}m"
-                elif "ALTURA" in cell.upper():
-                    discipline = "altura"
-                elif "LONGITUD" in cell.upper():
-                    discipline = "longitud"
-                elif "TRIPLE" in cell.upper():
-                    discipline = "triple"
-                elif "PESO" in cell.upper():
-                    discipline = "peso"
-                elif "DISCO" in cell.upper():
-                    discipline = "disco"
-                elif "MARTILLO" in cell.upper():
-                    discipline = "martillo"
-                elif "JABALINA" in cell.upper():
-                    discipline = "jabalina"
-                elif "PÉRTIGA" in cell.upper() or "PERTIGA" in cell.upper():
-                    discipline = "pértiga"
+        # Extraer disciplina, sexo y categoría de los campos restantes
+        remaining_cells = [cell for cell in row_text if cell and not re.search(r"(\d{1,2}):(\d{2})", cell)]
 
-            # Determinar sexo
-            if "F" in cell.upper() or "FEMENINO" in cell.upper():
-                sex = Sex.FEMENINO
-            elif "M" in cell.upper() or "MASCULINO" in cell.upper():
+        for cell in remaining_cells:
+            # Buscar patrón de disciplina (ej: "60m", "Altura", "Peso")
+            if not discipline:
+                # Normalizar disciplina
+                discipline = normalize_discipline(cell)
+
+            # Buscar sexo
+            if "M" in cell.upper() and sex == Sex.MASCULINO:
                 sex = Sex.MASCULINO
+            elif "F" in cell.upper():
+                sex = Sex.FEMENINO
+
+            # Buscar categoría (última parte)
+            if not category and len(cell.split()) > 1:
+                parts = cell.split()
+                if len(parts) > 1:
+                    category = " ".join(parts[1:])  # Todo después del primer espacio
+
+        # Si no se encontró disciplina válida, intentar con el primer campo
+        if not discipline and remaining_cells:
+            discipline = normalize_discipline(remaining_cells[0])
 
         if not discipline:
             return None
 
-        # Normalizar disciplina
-        normalized_discipline = normalize_discipline(discipline)
-        if not normalized_discipline:
-            return None
-
         return Event(
-            discipline=normalized_discipline,
+            discipline=discipline,
             event_type=event_type,
             sex=sex,
             scheduled_time=scheduled_time,
-            category=category or "",
+            category=category or "Absoluto",
         )

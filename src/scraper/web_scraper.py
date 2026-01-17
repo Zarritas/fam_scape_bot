@@ -149,8 +149,20 @@ class WebScraper:
             logger.warning("No se encontró la tabla del calendario")
             return []
 
-        # Saltar el header (primera fila)
-        rows = calendar_table.find_all("tr")[1:]
+        # Obtener todas las filas
+        all_rows = calendar_table.find_all("tr")
+
+        # Detectar si la primera fila es un header
+        rows = all_rows
+        if all_rows:
+            first_row = all_rows[0]
+            cells = first_row.find_all("td")
+            if cells:
+                first_cell_text = cells[0].get_text(strip=True).lower()
+                # Si la primera celda contiene palabras de header, saltar la primera fila
+                header_keywords = ["fecha", "día", "competición", "prueba", "evento"]
+                if any(keyword in first_cell_text for keyword in header_keywords):
+                    rows = all_rows[1:]
 
         for row in rows:
             competition = self._parse_real_competition_row(row, default_month, default_year)

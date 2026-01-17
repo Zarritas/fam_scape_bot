@@ -23,7 +23,7 @@ class TestFullWorkflowReal:
 <html>
 <head><title>Calendario FAM</title></head>
 <body>
-    <table>
+    <table class="table table-striped table-hover">
         <tbody>
             <tr>
                 <td>03/01/2026</td>
