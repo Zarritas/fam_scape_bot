@@ -5,6 +5,7 @@ Tests unitarios para el web scraper.
 from src.scraper.models import RawCompetition
 from src.scraper.web_scraper import (
     WebScraper,
+    clean_pdf_url,
     get_current_and_next_months,
     parse_date_string,
 )
@@ -113,3 +114,49 @@ class TestRawCompetition:
         )
 
         assert comp.pdf_url == "https://example.com/test.pdf"
+
+
+class TestCleanPdfUrl:
+    """Tests para la función clean_pdf_url."""
+
+    def test_clean_url_without_parameters(self):
+        """Test que mantiene URLs limpias sin cambios."""
+        url = "https://fam.es/pdfs/competition.pdf"
+        assert clean_pdf_url(url) == url
+
+    def test_clean_url_with_query_parameters(self):
+        """Test que elimina parámetros de query después de .pdf."""
+        url = "https://fam.es/pdfs/competition.pdf?param=value&other=123"
+        expected = "https://fam.es/pdfs/competition.pdf"
+        assert clean_pdf_url(url) == expected
+
+    def test_clean_url_with_fragment(self):
+        """Test que elimina fragmentos después de .pdf."""
+        url = "https://fam.es/pdfs/competition.pdf#page=1"
+        expected = "https://fam.es/pdfs/competition.pdf"
+        assert clean_pdf_url(url) == expected
+
+    def test_clean_url_with_both_params_and_fragment(self):
+        """Test que elimina tanto parámetros como fragmentos."""
+        url = "https://fam.es/pdfs/competition.pdf?download=1#section"
+        expected = "https://fam.es/pdfs/competition.pdf"
+        assert clean_pdf_url(url) == expected
+
+    def test_clean_url_case_insensitive(self):
+        """Test que funciona con .PDF en mayúsculas."""
+        url = "https://fam.es/pdfs/competition.PDF?param=value"
+        expected = "https://fam.es/pdfs/competition.PDF"
+        assert clean_pdf_url(url) == expected
+
+    def test_clean_url_no_pdf_extension(self):
+        """Test que mantiene URLs sin extensión .pdf sin cambios."""
+        url = "https://fam.es/files/document.docx"
+        assert clean_pdf_url(url) == url
+
+    def test_clean_url_empty_string(self):
+        """Test que maneja strings vacíos correctamente."""
+        assert clean_pdf_url("") == ""
+
+    def test_clean_url_none(self):
+        """Test que maneja None correctamente."""
+        assert clean_pdf_url(None) is None

@@ -21,6 +21,35 @@ from src.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+
+def clean_pdf_url(pdf_url: str | None) -> str | None:
+    """
+    Limpia una URL de PDF eliminando todo el texto que aparezca después de '.pdf'.
+
+    Esto es útil cuando las URLs tienen parámetros adicionales que no son parte
+    del archivo PDF real.
+
+    Args:
+        pdf_url: URL del PDF que puede contener texto adicional después de .pdf
+
+    Returns:
+        URL limpia que termina exactamente en .pdf, o None si la entrada es None
+    """
+    if not pdf_url:
+        return pdf_url
+
+    # Buscar la posición de '.pdf' (case insensitive)
+    pdf_pos = pdf_url.lower().find(".pdf")
+    if pdf_pos == -1:
+        return pdf_url
+
+    # Cortar justo después de '.pdf' (4 caracteres: .pdf)
+    clean_url = pdf_url[: pdf_pos + 4]
+
+    logger.debug(f"Cleaned PDF URL: {pdf_url} -> {clean_url}")
+    return clean_url
+
+
 # Meses en español para conversión de fechas
 MONTHS_ES: dict[str, int] = {
     "enero": 1,
@@ -206,6 +235,8 @@ class WebScraper:
         if pdf_link:
             pdf_href = pdf_link.get("href")
             if pdf_href:
+                # Limpiar la URL eliminando todo después de .pdf
+                pdf_href = clean_pdf_url(pdf_href)
                 pdf_url = urljoin(self.base_url, pdf_href)
 
         # Columna 5: Inscritos (contiene el enlace de inscripción)
@@ -301,6 +332,8 @@ class WebScraper:
         if not pdf_url:
             return None
 
+        # Limpiar la URL eliminando todo después de .pdf
+        pdf_url = clean_pdf_url(pdf_url)
         pdf_url = urljoin(self.base_url, pdf_url)
 
         # 3. Extraer Nombre (Ancla - 2)
