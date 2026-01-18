@@ -60,5 +60,6 @@ htmlcov/
 Thumbs.db
 
 ejemplos/
+*ruff*
 
 AGENTS.md
